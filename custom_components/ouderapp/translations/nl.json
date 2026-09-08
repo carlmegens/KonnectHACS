@@ -21,7 +21,7 @@
       "interaction_required": "Rond de vereiste accountstap af in het officiële ouderportaal en probeer opnieuw.",
       "invalid_auth": "Aanmelden is geweigerd. Controleer je account in het officiële ouderportaal.",
       "cannot_connect": "Het ouderportaal is niet bereikbaar. Probeer later opnieuw.",
-      "unsupported_response": "Het ouderportaal gaf een niet-ondersteund antwoord."
+      "unsupported_response": "Het ouderportaal gaf een niet-ondersteund antwoord. Diagnosecode: {code}. Geef alleen deze code door; geen wachtwoord of accountgegevens."
     },
     "abort": {
       "already_configured": "Dit ouderaccount is al ingesteld.",

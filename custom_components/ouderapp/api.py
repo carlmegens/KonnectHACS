@@ -26,6 +26,45 @@ class OuderAppError(Exception):
     """Unsupported response, without provider content."""
 
 
+class OuderAppResponseError(OuderAppError):
+    """Finite diagnostic identifiers, never provider values or request details."""
+
+    def __init__(self, reason: str, stage: str = "unknown", status: int | None = None) -> None:
+        reasons = {
+            "provider_rejected",
+            "response_shape",
+            "http_status",
+            "invalid_json",
+            "too_large",
+            "account_destination",
+            "missing_access_token",
+            "missing_refresh_token",
+            "invalid_token",
+            "account_identity",
+            "unknown",
+        }
+        stages = {"captcha", "login", "refresh", "identity", "parent", "content", "unknown"}
+        self.reason = reason if reason in reasons else "unknown"
+        self.stage = stage if stage in stages else "unknown"
+        self.status = status if type(status) is int and 100 <= status <= 599 else None
+        super().__init__(self.code)
+
+    @property
+    def code(self) -> str:
+        suffix = f"_{self.status}" if self.reason == "http_status" and self.status else ""
+        return f"{self.stage}.{self.reason}{suffix}"
+
+
+def _response_stage(path: str) -> str:
+    return {
+        "/auth-api/captcha": "captcha",
+        "/auth-api/login": "login",
+        "/auth-api/token": "refresh",
+        "/auth-api/user": "identity",
+        "/restservices-parent/parent": "parent",
+    }.get(path, "content")
+
+
 class OuderAppAuthError(OuderAppError):
     """An account needs to sign in again."""
 
@@ -64,11 +103,11 @@ def account_key(portal: str, username: str) -> str:
 
 def _unwrap(value: Any) -> Any:
     if isinstance(value, dict) and value.get("result") is False:
-        raise OuderAppError("Provider rejected request")
+        raise OuderAppResponseError("provider_rejected")
     if (
         isinstance(value, dict)
         and "payload" in value
-        and set(value) <= {"result", "payload", "messages"}
+        and (type(value.get("result")) is bool or set(value) <= {"payload", "messages"})
     ):
         return value["payload"]
     return value
@@ -76,7 +115,7 @@ def _unwrap(value: Any) -> Any:
 
 def _object(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise OuderAppError("Unexpected response shape")
+        raise OuderAppResponseError("response_shape")
     return value
 
 
@@ -180,26 +219,36 @@ class OuderAppApi:
                 if status == 400 and path.startswith("/auth-api/"):
                     raise OuderAppAuthError("Authentication rejected")
                 if status != 200:
-                    raise OuderAppError("Unexpected HTTP status")
+                    raise OuderAppResponseError("http_status", _response_stage(path), status)
                 data = bytearray()
                 async for chunk in response.aiter_bytes():
                     data.extend(chunk)
                     if len(data) > MAX_RESPONSE_BYTES:
-                        raise OuderAppError("Response too large")
+                        raise OuderAppResponseError("too_large", _response_stage(path))
         except httpx.HTTPError, TimeoutError:
             raise OuderAppConnectionError("Unable to reach provider") from None
         try:
             return _unwrap(json.loads(data))
+        except OuderAppResponseError as error:
+            if error.reason == "provider_rejected" and path in (
+                "/auth-api/login",
+                "/auth-api/token",
+            ):
+                raise OuderAppAuthError("Authentication rejected") from None
+            raise OuderAppResponseError(error.reason, _response_stage(path)) from None
         except ValueError, UnicodeError:
-            raise OuderAppError("Invalid JSON response") from None
+            raise OuderAppResponseError("invalid_json", _response_stage(path)) from None
 
     def _tokens(self, body: Any, previous: Session | None = None) -> tuple[str, str]:
-        data = _object(body)
+        stage = "refresh" if previous else "login"
+        if not isinstance(body, dict):
+            raise OuderAppResponseError("response_shape", stage)
+        data = body
         if data.get("mustResetPassword"):
             raise OuderAppInteractionRequired("Complete account step in parent portal")
         destination = data.get("domainServerName")
         if destination and destination not in (self.portal, f"{self.portal}.ouderportaal.nl"):
-            raise OuderAppError("Unexpected account destination")
+            raise OuderAppResponseError("account_destination", stage)
         redirect = data.get("redirectUrl")
         if redirect is not None and (
             not isinstance(redirect, str)
@@ -208,15 +257,21 @@ class OuderAppApi:
             raise OuderAppInteractionRequired("Parent account required")
         access = data.get("authToken")
         refresh = data.get("refreshToken") or (previous.refresh_token if previous else None)
+        if access is None or access == "":
+            raise OuderAppResponseError("missing_access_token", stage)
+        if refresh is None or refresh == "":
+            raise OuderAppResponseError("missing_refresh_token", stage)
         if not all(isinstance(v, str) and 0 < len(v) <= 32768 for v in (access, refresh)):
-            raise OuderAppError("No renewable session returned")
+            raise OuderAppResponseError("invalid_token", stage)
         return access, refresh
 
     async def _identity(self, token: str) -> tuple[str, str]:
-        user = _object(await self._request("GET", "/auth-api/user", token=token))
+        user = await self._request("GET", "/auth-api/user", token=token)
+        if not isinstance(user, dict):
+            raise OuderAppResponseError("response_shape", "identity")
         username = user.get("username")
         if not isinstance(username, str) or not username.strip() or len(username) > 320:
-            raise OuderAppError("No verified account identity")
+            raise OuderAppResponseError("account_identity", "identity")
         return username.strip(), account_key(self.portal, username)
 
     async def async_login(
@@ -240,7 +295,9 @@ class OuderAppApi:
         access, refresh = self._tokens(result)
         canonical_name, identity = await self._identity(access)
         # Prove parent access before accepting a session from a shared login API.
-        _object(await self._request("GET", "/restservices-parent/parent", token=access))
+        parent = await self._request("GET", "/restservices-parent/parent", token=access)
+        if not isinstance(parent, dict):
+            raise OuderAppResponseError("response_shape", "parent")
         self.session = Session(
             self.portal, canonical_name, identity, access, refresh, dict(device_info)
         )

@@ -1,5 +1,6 @@
 """Sign in through Home Assistant; keep passwords out of saved configuration."""
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -14,6 +15,7 @@ from .api import (
     OuderAppConnectionError,
     OuderAppError,
     OuderAppInteractionRequired,
+    OuderAppResponseError,
     normalize_portal,
 )
 from .const import (
@@ -29,6 +31,8 @@ from .const import (
 )
 from .runtime import async_login
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class OuderAppConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a tenant and a verified parent account."""
@@ -37,6 +41,7 @@ class OuderAppConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {}
+        diagnostic_code = "unknown"
         portal_default = "deeerstestap"
         if self.source == config_entries.SOURCE_REAUTH:
             portal_default = self._get_reauth_entry().data[CONF_SESSION][CONF_PORTAL]
@@ -54,8 +59,15 @@ class OuderAppConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except OuderAppConnectionError:
                 errors["base"] = "cannot_connect"
+            except OuderAppResponseError as error:
+                diagnostic_code = error.code
+                errors["base"] = "unsupported_response"
+                _LOGGER.warning(
+                    "OuderApp sign-in response could not be processed (code: %s)", diagnostic_code
+                )
             except OuderAppError:
                 errors["base"] = "unsupported_response"
+                _LOGGER.warning("OuderApp sign-in response could not be processed (code: unknown)")
             else:
                 await self.async_set_unique_id(session.account_id)
                 data = {CONF_SESSION: session.storage()}
@@ -78,6 +90,7 @@ class OuderAppConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+            description_placeholders={"code": diagnostic_code},
         )
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:

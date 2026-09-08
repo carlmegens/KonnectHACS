@@ -21,7 +21,7 @@
       "interaction_required": "Complete the required account step in the official parent portal, then try again.",
       "invalid_auth": "Sign-in was rejected. Check your account in the official parent portal.",
       "cannot_connect": "Cannot reach the parent portal. Try again later.",
-      "unsupported_response": "The parent portal returned an unsupported response."
+      "unsupported_response": "The parent portal returned an unsupported response. Diagnostic code: {code}. Share only this code, not your password or account details."
     },
     "abort": {
       "already_configured": "This parent account is already configured.",

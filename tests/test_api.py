@@ -332,3 +332,98 @@ async def test_conversation_identifier_never_changes_api_path(session, identifie
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         with pytest.raises(ValueError):
             await OuderAppApi(client, "example", session).async_get_conversation(identifier)
+
+
+async def test_login_accepts_envelope_metadata_without_persisting_it():
+    def handle(request):
+        if request.url.path == "/auth-api/captcha":
+            payload = None
+        elif request.url.path == "/auth-api/login":
+            payload = {"authToken": "access", "refreshToken": "refresh"}
+        else:
+            payload = {"username": "verified@example.invalid"}
+        return httpx.Response(
+            200,
+            json={
+                "result": True,
+                "payload": payload,
+                "messages": None,
+                "timestamp": "SYNTHETIC-PRIVATE-METADATA",
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        session = await OuderAppApi(client, "example").async_login(
+            "typed", "SYNTHETIC-PASSWORD", {}
+        )
+        assert session.username == "verified@example.invalid"
+        assert session.access_token == "access"
+        assert "SYNTHETIC" not in json.dumps(session.storage())
+
+
+@pytest.mark.parametrize(
+    "path,status,payload,code",
+    [
+        ("/auth-api/captcha", 200, "not-json", "captcha.invalid_json"),
+        ("/auth-api/login", 201, {}, "login.http_status_201"),
+        ("/auth-api/login", 200, {"authToken": "SYNTHETIC-TOKEN"}, "login.missing_refresh_token"),
+        ("/auth-api/login", 200, {"refreshToken": "SYNTHETIC-TOKEN"}, "login.missing_access_token"),
+        (
+            "/auth-api/login",
+            200,
+            {"authToken": "a", "refreshToken": "r", "domainServerName": "SYNTHETIC-PRIVATE-HOST"},
+            "login.account_destination",
+        ),
+        ("/auth-api/user", 404, {}, "identity.http_status_404"),
+        ("/auth-api/user", 200, [], "identity.response_shape"),
+        ("/auth-api/user", 200, {"fullname": "SYNTHETIC-PARENT"}, "identity.account_identity"),
+        ("/restservices-parent/parent", 200, [], "parent.response_shape"),
+    ],
+)
+async def test_login_failure_reports_only_a_finite_stage_code(path, status, payload, code):
+    from custom_components.ouderapp.api import OuderAppResponseError
+
+    def handle(request):
+        if request.url.path == path:
+            if payload == "not-json":
+                return httpx.Response(status, text="SYNTHETIC-PRIVATE-RESPONSE")
+            return httpx.Response(status, json=payload)
+        if request.url.path == "/auth-api/login":
+            return httpx.Response(
+                200, json={"authToken": "SYNTHETIC-TOKEN", "refreshToken": "SYNTHETIC-REFRESH"}
+            )
+        return httpx.Response(200, json={"username": "SYNTHETIC-PARENT"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        api = OuderAppApi(client, "example")
+        with pytest.raises(OuderAppResponseError) as failure:
+            await api.async_login("SYNTHETIC-USERNAME", "SYNTHETIC-PASSWORD", {})
+        assert failure.value.code == code
+        assert "SYNTHETIC" not in str(failure.value)
+        assert api.session is None
+
+
+async def test_http_200_rejected_login_is_an_auth_failure():
+    def handle(request):
+        if request.url.path == "/auth-api/captcha":
+            return httpx.Response(200, json={"result": True, "payload": None})
+        return httpx.Response(
+            200,
+            json={
+                "result": False,
+                "payload": None,
+                "messages": [{"messageCode": "SYNTHETIC-PRIVATE"}],
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(OuderAppAuthError) as failure:
+            await OuderAppApi(client, "example").async_login("name", "password", {})
+        assert "SYNTHETIC" not in str(failure.value)
+
+
+def test_diagnostic_code_cannot_contain_arbitrary_details():
+    from custom_components.ouderapp.api import OuderAppResponseError
+
+    error = OuderAppResponseError("SYNTHETIC-TOKEN", "SYNTHETIC-USERNAME", "SYNTHETIC-STATUS")
+    assert str(error) == error.code == "unknown.unknown"

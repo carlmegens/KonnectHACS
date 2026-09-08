@@ -217,3 +217,25 @@ async def test_viewer_options_validate_users_and_keep_sources_separate(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options["dashboard_viewers"] == [hass_read_only_user.id]
     assert config_entry.options["message_viewers"] == []
+
+
+async def test_flow_exposes_safe_diagnostic_without_provider_values(hass, caplog):
+    from custom_components.ouderapp.api import OuderAppResponseError
+
+    with patch(
+        "custom_components.ouderapp.config_flow.async_login",
+        side_effect=OuderAppResponseError("missing_refresh_token", "login"),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            "ouderapp",
+            context={"source": "user"},
+            data={
+                "portal": "example",
+                "username": "SYNTHETIC-USERNAME",
+                "password": "SYNTHETIC-PASSWORD",
+            },
+        )
+    assert result["errors"] == {"base": "unsupported_response"}
+    assert result["description_placeholders"] == {"code": "login.missing_refresh_token"}
+    assert "login.missing_refresh_token" in caplog.text
+    assert "SYNTHETIC" not in caplog.text
