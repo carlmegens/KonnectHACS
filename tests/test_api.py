@@ -53,6 +53,8 @@ async def test_login_contract_and_password_not_persisted():
         requests.append(request)
         path = request.url.path
         assert request.url.host == "example.ouderportaal.nl"
+        assert request.headers.get("X-Client-Name") == "OuderApp"
+        assert request.headers.get("X-Client-Version") == "3.64.1"
         if path == "/auth-api/captcha":
             return httpx.Response(200, json={"result": True, "payload": None})
         if path == "/auth-api/login":
@@ -129,6 +131,8 @@ async def test_refresh_rotates_and_persists_verified_session(session):
     def handle(request):
         seen.append(request)
         if request.url.path == "/auth-api/token":
+            assert request.headers.get("X-Client-Name") == "OuderApp"
+            assert request.headers.get("X-Client-Version") == "3.64.1"
             data = json.loads(request.content)
             assert data["refreshToken"] == "refresh-test"
             assert "password" not in data

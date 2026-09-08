@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.1.3 — clientherkenning bij aanmelden
+
+API-aanroepen sturen nu `X-Client-Name: OuderApp` en de protocolversie `3.64.1` mee, overeenkomstig de HTTP-interceptor van de onderzochte officiële app. Deze headers ontbraken bij aanmelden en sessievernieuwing. De integratie blijft via haar User-Agent herkenbaar als Home Assistant.
+
+Dit corrigeert een aangetoonde afwijking van het appcontract na de melding `login.missing_refresh_token`. Of dit de aanmeldfout bij De Eerste Stap oplost, moet de volgende praktijkproef bevestigen. Een ontbrekend vernieuwingstoken blijft een fout; er wordt geen wachtwoord opgeslagen als vervanging.
+
 ## 0.1.2 — OuderApp-logo
 
 Het aangeleverde OuderApp-logo wordt meegeleverd als lokaal integratie-icoon voor Home Assistant en staat bovenaan de README. De oorspronkelijke afbeelding is ongewijzigd overgenomen.

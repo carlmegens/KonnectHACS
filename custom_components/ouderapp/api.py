@@ -20,6 +20,10 @@ import httpx
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_ITEMS = 100
 PORTAL_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+# Client protocol selected by the official app's HTTP interceptor. Keep this
+# separate from our integration version and HomeAssistant-OuderApp User-Agent.
+# Public parent build main.c77f420466dc9cc6.js, inspected 2026-09-09.
+PROVIDER_CLIENT_VERSION = "3.64.1"
 
 
 class OuderAppError(Exception):
@@ -198,7 +202,11 @@ class OuderAppApi:
             raise OuderAppConnectionError("Client closed")
         if not path.startswith(("/auth-api/", "/restservices-parent/")):
             raise ValueError("Unsupported route")
-        headers = {"Accept": "application/json"}
+        headers = {
+            "Accept": "application/json",
+            "X-Client-Name": "OuderApp",
+            "X-Client-Version": PROVIDER_CLIENT_VERSION,
+        }
         if token:
             headers["Authorization"] = f"Bearer {token}"
         try:

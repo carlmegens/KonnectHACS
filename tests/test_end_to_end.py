@@ -13,6 +13,9 @@ async def test_real_flow_transport_refresh_and_unload(hass, hass_ws_client):
     def server(request):
         requests.append(request)
         assert request.url.host == "example.ouderportaal.nl"
+        assert request.headers.get("X-Client-Name") == "OuderApp"
+        assert request.headers.get("X-Client-Version") == "3.64.1"
+        assert request.headers["User-Agent"].startswith("HomeAssistant-OuderApp/")
         path = request.url.path
         if path == "/auth-api/captcha":
             return httpx.Response(200, json={"result": True, "payload": None})
