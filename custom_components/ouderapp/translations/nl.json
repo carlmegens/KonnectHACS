@@ -1,0 +1,68 @@
+{
+  "title": "OuderApp (Konnect)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aanmelden bij OuderApp",
+        "description": "Vul de portaalnaam van je opvang in, bijvoorbeeld deeerstestap. Deze ontwikkelversie is nog niet met een echt ouderaccount gecontroleerd.",
+        "data": {
+          "portal": "Ouderportaal",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Opnieuw aanmelden",
+        "description": "Het ouderaccount moet opnieuw worden aangemeld."
+      }
+    },
+    "error": {
+      "invalid_portal": "Vul een portaalnaam of de exacte HTTPS-hostnaam in.",
+      "interaction_required": "Rond de vereiste accountstap af in het officiële ouderportaal en probeer opnieuw.",
+      "invalid_auth": "Aanmelden is geweigerd. Controleer je account in het officiële ouderportaal.",
+      "cannot_connect": "Het ouderportaal is niet bereikbaar. Probeer later opnieuw.",
+      "unsupported_response": "Het ouderportaal gaf een niet-ondersteund antwoord."
+    },
+    "abort": {
+      "already_configured": "Dit ouderaccount is al ingesteld.",
+      "reauth_successful": "Aanmelding vernieuwd.",
+      "unique_id_mismatch": "Meld je aan met hetzelfde ouderaccount en ouderportaal."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Verversingsinterval",
+        "data": {
+          "poll_interval": "Tellers verversen (minuten)",
+          "dashboard_viewers": "Lezers tijdlijn en nieuws",
+          "message_viewers": "Lezers gesprekken"
+        }
+      }
+    },
+    "error": {
+      "invalid_viewers": "Selecteer bestaande actieve gebruikers."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "children_count": {
+        "name": "Kinderen"
+      },
+      "unread_messages": {
+        "name": "Ongelezen berichten"
+      },
+      "unread_news": {
+        "name": "Ongelezen nieuwsitems"
+      },
+      "last_success": {
+        "name": "Laatste geslaagde synchronisatie"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Verbinding"
+      }
+    }
+  }
+}

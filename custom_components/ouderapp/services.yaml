@@ -1,0 +1,34 @@
+get_content:
+  name: Read content
+  description: Read a bounded, private response from one account. Administrators and trusted automations only. Nothing is sent to the childcare provider.
+  fields:
+    config_entry_id:
+      name: Account
+      required: true
+      selector:
+        config_entry:
+          integration: ouderapp
+    kind:
+      name: Content
+      required: true
+      selector:
+        select:
+          options:
+            - timeline
+            - news
+            - newsletters
+            - conversations
+            - messages
+    limit:
+      name: Maximum items
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 20
+          mode: box
+    conversation:
+      name: Conversation ID
+      description: Required for messages. Use conversation_id returned by conversations.
+      selector:
+        text:

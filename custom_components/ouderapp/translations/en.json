@@ -1,0 +1,68 @@
+{
+  "title": "OuderApp (Konnect)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sign in to OuderApp",
+        "description": "Use the portal name for your childcare provider, for example deeerstestap. This development version has not yet been verified with a real parent account.",
+        "data": {
+          "portal": "Portal",
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "The parent account needs to sign in again."
+      }
+    },
+    "error": {
+      "invalid_portal": "Enter a portal name or its exact HTTPS hostname.",
+      "interaction_required": "Complete the required account step in the official parent portal, then try again.",
+      "invalid_auth": "Sign-in was rejected. Check your account in the official parent portal.",
+      "cannot_connect": "Cannot reach the parent portal. Try again later.",
+      "unsupported_response": "The parent portal returned an unsupported response."
+    },
+    "abort": {
+      "already_configured": "This parent account is already configured.",
+      "reauth_successful": "Sign-in renewed.",
+      "unique_id_mismatch": "Sign in with the same parent account and portal."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update interval",
+        "data": {
+          "poll_interval": "Counter update interval (minutes)",
+          "dashboard_viewers": "Timeline and news viewers",
+          "message_viewers": "Conversation viewers"
+        }
+      }
+    },
+    "error": {
+      "invalid_viewers": "Select existing active users."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "children_count": {
+        "name": "Children"
+      },
+      "unread_messages": {
+        "name": "Unread messages"
+      },
+      "unread_news": {
+        "name": "Unread news items"
+      },
+      "last_success": {
+        "name": "Last successful synchronization"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connection"
+      }
+    }
+  }
+}

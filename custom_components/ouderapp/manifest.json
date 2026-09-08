@@ -1,0 +1,24 @@
+{
+  "domain": "ouderapp",
+  "name": "OuderApp (Konnect)",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/carlmegens/KonnectHACS",
+  "issue_tracker": "https://github.com/carlmegens/KonnectHACS/issues",
+  "codeowners": [
+    "@carlmegens"
+  ],
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements": [
+    "httpx==0.28.1"
+  ],
+  "dependencies": [
+    "http",
+    "websocket_api"
+  ],
+  "after_dependencies": [
+    "frontend",
+    "lovelace"
+  ]
+}
