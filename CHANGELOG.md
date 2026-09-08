@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.1.2 — OuderApp-logo
+
+Het aangeleverde OuderApp-logo wordt meegeleverd als lokaal integratie-icoon voor Home Assistant en staat bovenaan de README. De oorspronkelijke afbeelding is ongewijzigd overgenomen.
+
 ## 0.1.1 — aanmeldcompatibiliteit en diagnose
 
 Antwoorden met een `result`/`payload`-envelop mogen extra metadatavelden bevatten. De identiteit en sessietokens blijven strikt gevalideerd. Afgewezen aanmeldingen in een HTTP 200-antwoord krijgen de juiste aanmeldfout.

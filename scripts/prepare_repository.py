@@ -30,6 +30,7 @@ MODULES = (
     "translations/en.json",
     "translations/nl.json",
     "frontend/ouderapp-card.js",
+    "brand/icon.png",
 )
 PUBLIC_DOCS = ("README.md", "LICENSE", "CHANGELOG.md", "hacs.json")
 
