@@ -12,8 +12,6 @@ Repository: [carlmegens/KonnectHACS](https://github.com/carlmegens/KonnectHACS).
 
 Vereist: Home Assistant Core **2026.8.3 of hoger**, HACS en je OuderApp-account. Maak voor deze eerste testversie een HA-back-up.
 
-**Zichtbaarheid:** HACS ondersteunt uitsluitend openbare GitHub-repositories. Zolang KonnectHACS privé staat, kan HACS de integratie nog niet downloaden. Zie de [officiële HACS-vereisten](https://www.hacs.xyz/docs/publish/start/).
-
 1. Klik op **Open OuderApp in HACS** hierboven. Kies zo nodig het adres van je Home Assistant-installatie.
 2. Voeg de repository toe en kies **Downloaden**. Handmatig toevoegen in HACS kan via **Aangepaste repositories**, adres `https://github.com/carlmegens/KonnectHACS`, type **Integratie**.
 3. Herstart Home Assistant.
