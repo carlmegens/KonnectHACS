@@ -37,3 +37,32 @@ get_content:
       description: Optional for news or newsletters. Use article_id from the same account and source to read one article.
       selector:
         text:
+
+get_planning:
+  name: Read childcare planning
+  description: Read up to 31 days of childcare slots. End date is exclusive, in Europe/Amsterdam. Administrators and trusted automations only; returned data is private.
+  fields:
+    config_entry_id:
+      name: Account
+      required: true
+      selector:
+        config_entry:
+          integration: ouderapp
+    start_date:
+      name: Start date (inclusive)
+      required: true
+      selector:
+        date:
+    end_date:
+      name: End date (exclusive)
+      required: true
+      selector:
+        date:
+    limit:
+      name: Maximum slots
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box

@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.3.0 — begrensde opvangplanning lezen
+
+Nieuwe beheerderactie `ouderapp.get_planning` voor een expliciete periode van maximaal 31 dagen, met maximaal 100 chronologisch gesorteerde opvangmomenten. De einddatum is exclusief; datums gelden in Europe/Amsterdam. Tijdzone-overgangen, periodegrenzen, lege lijsten en ongeldige brondata worden gecontroleerd.
+
+Afwezige en voorlopige momenten behouden die status; andere statussen blijven onbekend totdat hun betekenis is aangetoond. De providerwaarschuwing over een offline planningskoppeling wordt als booleaanse vlag behouden, zonder ruwe providerberichten door te geven. Kindnamen en planning blijven buiten statusentiteiten en diagnostiek. Toegang en geladen account worden ook na de aanvraag gecontroleerd.
+
+De actie leest uitsluitend opvangtijdsloten. Geen boekingswijzigingen, activiteiten, oudergesprekken, kalenderabonnements-URL of kalenderentiteit. Identifiers blijven stabiel voor ongewijzigde tijdslots; rescheduling heeft nog geen bewezen provideridentiteit. Getest met synthetische data, nog niet met echte planning.
+
 ## 0.2.2 — nieuwsoverzicht laden
 
 Het nieuwsoverzicht verwerkt nu de officiële `payload.newsItems`-antwoordvorm. Eerdere versies verwachtten hier een losse lijst en konden daardoor “Berichten konden niet worden geladen” tonen terwijl de nieuwsteller wel werkte. De correctie geldt ook voor de lijstcontrole bij het openen van een nieuwsdetail. Een geldige lege lijst blijft leeg; afwijkende antwoorden blijven herkenbaar als fout.

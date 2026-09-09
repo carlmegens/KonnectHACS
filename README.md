@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.2.2 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; de nieuwe detailweergave moet nog in de praktijk worden gecontroleerd.**
+**0.3.0 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; de nieuwe detailweergave en planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -40,12 +40,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.2.2-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.3.0-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.2.2`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.3.0`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -91,9 +91,32 @@ response_variable: ouderapp_result
 
 Voor één nieuwsitem of nieuwsbrief geef je daarnaast `article` mee: gebruik daarvoor de `article_id` uit hetzelfde account en dezelfde bron (`news` of `newsletters`). Het antwoord heeft `detail: true` en één item met gewone tekst; `truncated` geeft aan of de tekst is ingekort.
 
+## Opvangplanning lezen
+
+De actie `ouderapp.get_planning` leest opvangmomenten voor één account. Kies een begindatum en een **exclusieve einddatum**, maximaal 31 dagen later. Datums gelden in **Europe/Amsterdam**; zomer- en wintertijd worden meegenomen. Alleen beheerders en vertrouwde automatiseringen mogen deze actie uitvoeren. Kindnamen en planning komen niet in de gewone sensoren of diagnostiek; bewaar antwoorden en eventuele automatiseringstraces privé.
+
+```yaml
+action: ouderapp.get_planning
+data:
+  config_entry_id: VUL_HET_ACCOUNT_ID_IN
+  start_date: "2026-09-09"
+  end_date: "2026-09-16"
+  limit: 50
+response_variable: opvangplanning
+```
+
+Dit voorbeeld leest de periode van 9 september tot aan 16 september. Het antwoord bevat `events`, `returned`, `limit`, `truncated`, de datums en `time_zone`. De selectie bestaat uit opvangmomenten die de periode overlappen. Elk moment heeft `id`, `child`, `start`, `end`, `status` en `confirmation_required`. De begin- en eindtijd hebben een tijdzone-offset; een gebeurtenis die de periodegrens kruist wordt niet afgeknipt.
+
+- Maximaal 100 momenten, standaard 50, chronologisch gesorteerd. `truncated: true` betekent dat meer momenten buiten de antwoordlimiet vallen.
+- `status` is `absent`, `tentative` of `unknown`. Een onbekende providerstatus wordt nadrukkelijk niet als bevestigde opvang geïnterpreteerd. `confirmation_required` is waar/onwaar als de bron dit geeft, anders onbekend (`null`).
+- `data_connector_offline: true` betekent dat de leverancier waarschuwt voor mogelijk onjuiste of verouderde planning. Gebruik die gegevens niet als definitieve bevestiging.
+- Identifiers blijven gelijk voor hetzelfde ongewijzigde tijdslot van hetzelfde kind/account. Een verschoven begin- of eindtijd krijgt een andere identifier; er is nog geen stabiele provider-ID voor verplaatsingen aangetoond.
+- Deze actie doet per aanvraag een begrensde nieuwe lezing; geen terugval op een oude planningcache. Plan aanvragen met een redelijk interval, bijvoorbeeld hetzelfde halfuur als de tellers.
+- Alleen opvangtijdsloten worden geprojecteerd. Activiteiten, oudergesprekken, contracten en aanvragen vallen buiten deze actie. Er worden geen afspraken of opvangboekingen gewijzigd. Een kalenderentiteit, ICS-export of abonnement is nog niet meegeleverd.
+
 ## Grenzen van deze versie
 
-- Maximaal 20 items per aanvraag, eerste pagina/overzicht; geen volledig archief, kalender of BSO-planning. Een kalenderabonnements-URL zoals bij Parro is in de onderzochte actuele Konnect-app niet aangetoond; eigen planning-/ICS-export valt buiten deze versie.
+- Inhoudsoverzichten: maximaal 20 items per aanvraag, eerste pagina; geen volledig archief. De aparte planningactie leest maximaal 31 dagen/100 opvangmomenten. Een kalenderabonnements-URL zoals bij Parro is niet aangetoond; kalenderweergave en export volgen afzonderlijk.
 - Alleen de geobserveerde tijdlijnsoorten dagboek en foto worden weergegeven. Actie- en toestemmingskaarten worden overgeslagen.
 - Nieuws en nieuwsbrieven tonen eerst een samenvatting; uitklappen leest de beschikbare tekst. Volledige HTML-opmaak, documenten, enquêtes, video's en ingebedde afbeeldingen worden niet weergegeven.
 - Maximaal drie foto's per item en twaalf zichtbaar per kaart. Alleen ontvangen HTTPS-foto-URL's op `resource.kidskonnect.cloud` worden ondersteund. Andere mediahosts blijven dicht totdat hun echte gebruik is geverifieerd.

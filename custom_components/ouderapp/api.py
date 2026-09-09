@@ -197,6 +197,7 @@ class OuderAppApi:
         token: str | None = None,
         body: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        unwrap_response: bool = True,
     ) -> Any:
         if self.closed:
             raise OuderAppConnectionError("Client closed")
@@ -236,7 +237,9 @@ class OuderAppApi:
         except httpx.HTTPError, TimeoutError:
             raise OuderAppConnectionError("Unable to reach provider") from None
         try:
-            return _unwrap(json.loads(data))
+            value = json.loads(data)
+            payload = _unwrap(value)
+            return payload if unwrap_response else value
         except OuderAppResponseError as error:
             if error.reason == "provider_rejected" and path in (
                 "/auth-api/login",
@@ -343,19 +346,27 @@ class OuderAppApi:
                 await self.on_session(current)
             self.session = current
 
-    async def _get(self, path: str, **params: Any) -> Any:
+    async def _get(self, path: str, *, unwrap_response: bool = True, **params: Any) -> Any:
         if self.auth_failed or not self.session:
             raise OuderAppAuthError("Sign in again")
         token = self.session.access_token
         try:
             return await self._request(
-                "GET", "/restservices-parent" + path, token=token, params=params
+                "GET",
+                "/restservices-parent" + path,
+                token=token,
+                params=params,
+                unwrap_response=unwrap_response,
             )
         except OuderAppAuthError:
             await self._refresh(token)
         try:
             return await self._request(
-                "GET", "/restservices-parent" + path, token=self.session.access_token, params=params
+                "GET",
+                "/restservices-parent" + path,
+                token=self.session.access_token,
+                params=params,
+                unwrap_response=unwrap_response,
             )
         except OuderAppAuthError:
             self.auth_failed = True
@@ -394,6 +405,29 @@ class OuderAppApi:
     async def async_get_news(self, limit: int = 20) -> list[dict[str, Any]]:
         self._limit(limit)
         return _items(await self._get("/htmlnews/view"), "newsItems")[:limit]
+
+    async def async_get_planning(self, start_date: str, end_date: str) -> dict[str, Any]:
+        """Keep the finite offline warning before discarding the raw envelope."""
+        from .planning import period_for
+
+        period = period_for(start_date, end_date)
+        result = _object(
+            await self._get(
+                f"/calendar/{period.start:%Y%m%d}/until/{period.end:%Y%m%d}",
+                unwrap_response=False,
+            )
+        )
+        payload = _object(_unwrap(result))
+        messages = result.get("messages")
+        if messages is not None and not isinstance(messages, list):
+            raise OuderAppError("Unexpected planning warnings")
+        offline = any(
+            isinstance(message, dict)
+            and message.get("messageCode")
+            == "web.general.message.data_connector.child_planning.offline.possible_incorrect_data"
+            for message in messages or []
+        )
+        return {"days": payload.get("days"), "data_connector_offline": offline}
 
     async def async_get_article(self, kind: str, article: str) -> list[dict[str, Any]]:
         """Read one article only after proving membership of this account/source."""
