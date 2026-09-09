@@ -20,6 +20,23 @@ try {
   assert.ok(await page.evaluate(()=>fixture.photoCalls.every(x=>/^\/api\/ouderapp\/example-account\/image\/timeline\/[A-Za-z0-9_-]{32}$/.test(x))));
   assert.ok(await page.locator('ouderapp-card >> .photo img').first().getAttribute('src').then(x=>x.startsWith('blob:')));
  });
+ await test('calendar dates keep their day across timezones and timestamp labels follow DST',async()=>{
+  for(const zone of ['America/Los_Angeles','Europe/Amsterdam','Pacific/Auckland']) {
+   const context=await browser.newContext({timezoneId:zone});const localPage=await context.newPage();
+   try {
+    await localPage.goto(base+'?source=news');await localPage.waitForFunction(()=>window.card&&!card._loading&&card._started);
+    await localPage.evaluate(async()=>{fixture.items=[{id:'0',title:'Datum zonder tijd',created_at:'2026-09-08',contents:'Voorbeeld',images:[]}];await card._load(true);});
+    assert.equal(await localPage.locator('ouderapp-card >> time').innerText(),'8 sep 2026');
+    assert.equal(await localPage.locator('ouderapp-card >> time').getAttribute('datetime'),'2026-09-08');
+    assert.equal(await localPage.evaluate(()=>card._date('2026-09-08',true)),'8 sep 2026');
+    assert.equal(await localPage.evaluate(()=>card._date('2026-02-30')),'');
+    if(zone==='Europe/Amsterdam') {
+     assert.match(await localPage.evaluate(()=>card._date('2026-03-29T00:30:00+00:00',true)),/01:30/);
+     assert.match(await localPage.evaluate(()=>card._date('2026-03-29T01:30:00+00:00',true)),/03:30/);
+    }
+   } finally {await context.close();}
+  }
+ });
  await test('HA state updates never cause feed refetches',async()=>{
   const before=await page.evaluate(()=>fixture.calls.length);
   await page.evaluate(()=>{for(let i=0;i<100;i++)card.hass=makeHass();});

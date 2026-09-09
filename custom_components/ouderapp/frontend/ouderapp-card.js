@@ -1,4 +1,4 @@
-/* OuderApp card 0.4.0 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.4.1 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -334,9 +334,12 @@ class OuderAppCard extends HTMLElement {
     }
   }
   _date(value, includeTime = false) {
+    if (typeof value !== 'string' || !value || value.length > 64) return '';
     const date = new Date(value);
-    if (!value || Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat(this._language || 'en', { dateStyle: 'medium', ...(includeTime ? { timeStyle: 'short' } : {}) }).format(date);
+    if (Number.isNaN(date.getTime())) return '';
+    const dateOnly = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value);
+    if (dateOnly && date.toISOString().slice(0, 10) !== value) return '';
+    return new Intl.DateTimeFormat(this._language || 'en', { dateStyle: 'medium', ...(dateOnly ? { timeZone: 'UTC' } : includeTime ? { timeStyle: 'short' } : {}) }).format(date);
   }
   _render() {
     const active = this.shadowRoot.activeElement;

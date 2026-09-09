@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.4.1 — berichtdatums behouden
+
+Getalsdatums in milliseconden worden nu als gecontroleerde ISO-tijdstippen doorgegeven voor tijdlijn, nieuws, nieuwsbrieven en gesprekken. Die datums verdwenen eerder doordat alleen tekst werd geaccepteerd. ISO-datums en tijdstippen blijven ondersteund; ongeldige of buitenbereikwaarden leveren geen datumlabel op.
+
+Een datum zonder tijd blijft dezelfde kalenderdag in iedere browsertijdzone en krijgt geen verzonnen tijdstip. Tijdstippen met een offset worden naar UTC genormaliseerd en in de lokale browsertijd weergegeven. Een ISO-tijdstip zonder offset behoudt de lokale betekenis; er wordt geen serverzone aangenomen. Het contract is gebaseerd op de officiële Date/DayJs-verwerking en met synthetische data gecontroleerd.
+
 ## 0.4.0 — foto’s in nieuwsdetails
 
 Uitklappen van een nieuwsbericht toont naast tekst maximaal drie ondersteunde foto-elementen uit de officiële nieuwsindelingen. De bestaande gescheiden rechten, afgeschermde fotoverwijzingen, hostcontrole en afbeeldingsverwerking gelden ook voor deze foto’s. Video-elementen, afgeschermde portretten, onbekende indelingen en niet-ondersteunde hosts worden overgeslagen. Nieuwsbrieven en vrije HTML-afbeeldingen blijven tekstweergave.

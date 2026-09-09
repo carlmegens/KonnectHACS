@@ -10,7 +10,7 @@ import time
 from collections import OrderedDict
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from html.parser import HTMLParser
 from io import BytesIO
 from ipaddress import IPv6Address, ip_address, ip_network
@@ -174,6 +174,31 @@ def conversation_id(value: Any) -> str | None:
     if isinstance(value, str) and re.fullmatch(r"[0-9]{1,20}", value) and int(value) > 0:
         return value
     return None
+
+
+def _content_date(value: Any) -> str:
+    """Normalize the official Date/DayJs inputs; never guess seconds or local zones."""
+    try:
+        if type(value) is int:
+            result = datetime.fromtimestamp(value / 1000, UTC)
+        elif isinstance(value, str) and len(value) <= 64:
+            if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+                day = date.fromisoformat(value)
+                return day.isoformat() if 1970 <= day.year <= 2100 else ""
+            if not re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-2][0-9]:[0-5][0-9]"
+                r"(?::[0-5][0-9](?:\.[0-9]{1,6})?)?(?:Z|[+-][0-2][0-9]:[0-5][0-9])?",
+                value,
+            ):
+                return ""
+            result = datetime.fromisoformat(value)
+            if result.tzinfo is not None:
+                result = result.astimezone(UTC)
+        else:
+            return ""
+        return result.isoformat() if 1970 <= result.year <= 2100 else ""
+    except ValueError, OverflowError, OSError:
+        return ""
 
 
 def _safe_text(value: Any, maximum: int = 20000) -> str:
@@ -353,7 +378,7 @@ class OuderAppContent:
                     "contents": contents[:20000],
                     "truncated": truncated,
                     "sender": _safe_text(sender, 256),
-                    "created_at": _safe_text(date, 128),
+                    "created_at": _content_date(date),
                     "unread": unread if type(unread) is bool else None,
                     "conversation_id": detail_id,
                     "article_id": article_id,

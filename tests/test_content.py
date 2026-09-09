@@ -338,3 +338,54 @@ async def test_news_detail_photos_are_private_bounded_deduplicated_and_invalidat
         await feed.async_close()
         await other.async_close()
         await chat.async_close()
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (0, "1970-01-01T00:00:00+00:00"),
+        (1792890000000, "2026-10-25T01:00:00+00:00"),
+        ("2026-09-08", "2026-09-08"),
+        ("2026-09-08T12:34:56+02:00", "2026-09-08T10:34:56+00:00"),
+        ("2026-09-08T12:34:56.123Z", "2026-09-08T12:34:56.123000+00:00"),
+        ("2026-09-08 12:34", "2026-09-08T12:34:00"),
+        ("2026-10-25T02:30:00+02:00", "2026-10-25T00:30:00+00:00"),
+        ("2026-10-25T02:30:00+01:00", "2026-10-25T01:30:00+00:00"),
+        (None, ""),
+        (True, ""),
+        (False, ""),
+        (float("nan"), ""),
+        (1.2, ""),
+        (-1, ""),
+        (10**100, ""),
+        ("1792890000000", ""),
+        ("2026-02-30", ""),
+        ("2026-09-08T99:99:00Z", ""),
+        ("2026-09-08T12:00:00+25:00", ""),
+        ("2101-01-01", ""),
+        ("PRIVATE-PROVIDER-DATE", ""),
+        ("<b>2026-09-08</b>", ""),
+    ],
+)
+def test_content_date_normalizes_supported_types_without_guessing(value, expected):
+    assert module._content_date(value) == expected
+
+
+@pytest.mark.parametrize(
+    "kind,field",
+    [
+        ("news", "publishDate"),
+        ("newsletters", "sendDate"),
+        ("conversations", "date"),
+        ("messages", "date"),
+        ("timeline", "date"),
+    ],
+)
+async def test_millisecond_dates_reach_each_content_source(hass, kind, field):
+    api = AsyncMock()
+    feed = OuderAppContent(hass, api, messages=kind in ("messages", "conversations"))
+    try:
+        result = feed._project(kind, [{field: 1792890000000, "type": "photo"}])
+        assert result["items"][0]["created_at"] == "2026-10-25T01:00:00+00:00"
+    finally:
+        await feed.async_close()
