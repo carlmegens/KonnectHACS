@@ -13,6 +13,7 @@ MODULES = (
     "__init__.py",
     "api.py",
     "binary_sensor.py",
+    "calendar_export.py",
     "config_flow.py",
     "const.py",
     "content.py",

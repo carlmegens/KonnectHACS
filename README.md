@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.3.0 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; de nieuwe detailweergave en planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.3.1 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; de nieuwe detailweergave en planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -40,12 +40,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.3.0-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.3.1-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.3.0`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.3.1`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -112,11 +112,34 @@ Dit voorbeeld leest de periode van 9 september tot aan 16 september. Het antwoor
 - `data_connector_offline: true` betekent dat de leverancier waarschuwt voor mogelijk onjuiste of verouderde planning. Gebruik die gegevens niet als definitieve bevestiging.
 - Identifiers blijven gelijk voor hetzelfde ongewijzigde tijdslot van hetzelfde kind/account. Een verschoven begin- of eindtijd krijgt een andere identifier; er is nog geen stabiele provider-ID voor verplaatsingen aangetoond.
 - Deze actie doet per aanvraag een begrensde nieuwe lezing; geen terugval op een oude planningcache. Plan aanvragen met een redelijk interval, bijvoorbeeld hetzelfde halfuur als de tellers.
-- Alleen opvangtijdsloten worden geprojecteerd. Activiteiten, oudergesprekken, contracten en aanvragen vallen buiten deze actie. Er worden geen afspraken of opvangboekingen gewijzigd. Een kalenderentiteit, ICS-export of abonnement is nog niet meegeleverd.
+- Alleen opvangtijdsloten worden geprojecteerd. Activiteiten, oudergesprekken, contracten en aanvragen vallen buiten deze actie. Er worden geen afspraken of opvangboekingen gewijzigd. Een kalenderentiteit of abonnement is nog niet meegeleverd. Een ICS-momentopname is beschikbaar zoals hieronder beschreven.
+
+## Kalenderexport voor automatiseringen
+
+Geef dezelfde actie `format: ics` mee om naast de planning ook een kalendertekst terug te krijgen:
+
+```yaml
+action: ouderapp.get_planning
+data:
+  config_entry_id: VUL_HET_ACCOUNT_ID_IN
+  start_date: "2026-09-09"
+  end_date: "2026-09-16"
+  limit: 100
+  format: ics
+response_variable: opvangplanning
+```
+
+Het antwoord bevat extra `calendar` (de ICS-tekst), `filename` en `content_type`. Een eigen automatisering kan de waarde `opvangplanning.calendar` gebruiken om een UTF-8-bestand met de opgegeven `.ics`-naam te bewaren. De integratie schrijft zelf geen bestand en biedt nog geen downloadknop. Gebruik de gedecodeerde tekstwaarde, niet het volledige JSON-antwoord of een letterlijk gekopieerde string met `\r\n`-escapes. Zonder `format` blijft het bestaande JSON-antwoord behouden.
+
+De export is een **momentopname**, zonder automatische synchronisatie. Importeer deze in een aparte kalender die je bij een volgende import vervangt: verplaatste of verwijderde opvangmomenten worden niet automatisch uit eerdere imports verwijderd, en kalenderapps kunnen bij herhaalde import duplicaten maken. Identifiers zijn stabiel voor ongewijzigde tijdsloten, ook als alleen de status verandert.
+
+Titels vermelden altijd **Voorlopig**, **Afwezig** of **Status onbekend**, plus de beschikbare kindnaam. De momenten blokkeren geen beschikbaarheid in je agenda. De omschrijving vermeldt wanneer volgens de bron bevestiging nodig is. Tijden worden als UTC opgeslagen zodat kalenderapps de juiste lokale tijd kunnen tonen, ook bij zomer-/wintertijd. De export gebruikt [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545.html).
+
+Een lege of afgekorte selectie en een offlinewaarschuwing leveren bij ICS een duidelijke fout op; JSON blijft die toestand wel teruggeven. Kies bij afkappen een kortere periode of een hogere limiet (maximaal 100). Bewaar of deel het bestand bewust: het bevat kindnamen en planning, en de HA-toegangscontrole geldt niet meer voor een eenmaal gekopieerd bestand.
 
 ## Grenzen van deze versie
 
-- Inhoudsoverzichten: maximaal 20 items per aanvraag, eerste pagina; geen volledig archief. De aparte planningactie leest maximaal 31 dagen/100 opvangmomenten. Een kalenderabonnements-URL zoals bij Parro is niet aangetoond; kalenderweergave en export volgen afzonderlijk.
+- Inhoudsoverzichten: maximaal 20 items per aanvraag, eerste pagina; geen volledig archief. De aparte planningactie leest maximaal 31 dagen/100 opvangmomenten. Een kalenderabonnements-URL zoals bij Parro is niet aangetoond; een ICS-momentopname is beschikbaar, een kalenderweergave volgt afzonderlijk.
 - Alleen de geobserveerde tijdlijnsoorten dagboek en foto worden weergegeven. Actie- en toestemmingskaarten worden overgeslagen.
 - Nieuws en nieuwsbrieven tonen eerst een samenvatting; uitklappen leest de beschikbare tekst. Volledige HTML-opmaak, documenten, enquêtes, video's en ingebedde afbeeldingen worden niet weergegeven.
 - Maximaal drie foto's per item en twaalf zichtbaar per kaart. Alleen ontvangen HTTPS-foto-URL's op `resource.kidskonnect.cloud` worden ondersteund. Andere mediahosts blijven dicht totdat hun echte gebruik is geverifieerd.

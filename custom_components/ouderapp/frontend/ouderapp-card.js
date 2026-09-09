@@ -1,4 +1,4 @@
-/* OuderApp card 0.3.0 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.3.1 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',

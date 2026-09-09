@@ -9,8 +9,10 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
+from icalendar import Calendar
 
 from custom_components.ouderapp.api import OuderAppApi, OuderAppAuthError, OuderAppError
+from custom_components.ouderapp.calendar_export import CalendarExportError, export_calendar
 from custom_components.ouderapp.planning import period_for, project_planning
 
 
@@ -214,32 +216,48 @@ async def planning_account(hass, config_entry, mock_api):
     return config_entry
 
 
-async def call_planning(hass, account, context):
+async def call_planning(hass, account, context, **options):
     return await hass.services.async_call(
         "ouderapp",
         "get_planning",
-        {"config_entry_id": account.entry_id, "start_date": "2026-10-25", "end_date": "2026-10-26"},
+        {
+            "config_entry_id": account.entry_id,
+            "start_date": "2026-10-25",
+            "end_date": "2026-10-26",
+            **options,
+        },
         blocking=True,
         return_response=True,
         context=context,
     )
 
 
+@pytest.mark.parametrize("format", ["json", "ics"])
 async def test_planning_service_is_admin_only_and_not_in_sensor_states(
-    hass, planning_account, mock_api, hass_read_only_user, hass_admin_user
+    hass, planning_account, mock_api, hass_read_only_user, hass_admin_user, format
 ):
     with pytest.raises(Unauthorized):
-        await call_planning(hass, planning_account, Context(user_id=hass_read_only_user.id))
+        await call_planning(
+            hass, planning_account, Context(user_id=hass_read_only_user.id), format=format
+        )
     mock_api.async_get_planning.assert_not_awaited()
     for context in (Context(), Context(user_id=hass_admin_user.id)):
-        result = await call_planning(hass, planning_account, context)
+        result = await call_planning(hass, planning_account, context, format=format)
         assert result["events"][0]["child"] == "Synthetic child"
+        if format == "ics":
+            parsed = Calendar.from_ical(result["calendar"])
+            assert len(parsed.walk("VEVENT")) == 1
+            assert result["filename"] == "ouderapp-2026-10-25-2026-10-26.ics"
+            assert result["content_type"] == "text/calendar; charset=utf-8"
+        else:
+            assert "calendar" not in result
     assert "Synthetic child" not in str([state.as_dict() for state in hass.states.async_all()])
 
 
 @pytest.mark.parametrize("change", ["unload", "replace", "disable", "auth"])
+@pytest.mark.parametrize("format", ["json", "ics"])
 async def test_planning_access_rechecked_after_await(
-    hass, planning_account, mock_api, hass_admin_user, change
+    hass, planning_account, mock_api, hass_admin_user, change, format
 ):
     coordinator = planning_account.runtime_data
 
@@ -257,7 +275,9 @@ async def test_planning_access_rechecked_after_await(
     mock_api.async_get_planning.side_effect = changing
     try:
         with pytest.raises(HomeAssistantError):
-            await call_planning(hass, planning_account, Context(user_id=hass_admin_user.id))
+            await call_planning(
+                hass, planning_account, Context(user_id=hass_admin_user.id), format=format
+            )
     finally:
         planning_account.runtime_data = coordinator
         planning_account.mock_state(hass, ConfigEntryState.LOADED)
@@ -271,3 +291,104 @@ async def test_planning_auth_error_revokes_content_and_hides_provider_error(
         await call_planning(hass, planning_account, Context())
     assert planning_account.runtime_data.content_auth_failed
     assert "PRIVATE-TOKEN" not in str(error.value) + caplog.text
+
+
+def test_calendar_parser_roundtrip_unicode_escaping_and_no_injected_components():
+    data = payload()
+    # Exercise untrusted text through the real planning projection first.
+    name = "Zoë, 李; \\" + "🧒" * 65 + "\r\nBEGIN:VALARM\r\nACTION:DISPLAY\x01"
+    data["days"][0]["children"][0]["child"]["firstName"] = name
+    planning = project_planning(data, "account-a", period_for("2026-10-25", "2026-10-26"))
+    encoded = export_calendar(planning)
+    assert encoded.endswith("\r\n")
+    assert "\n" not in encoded.replace("\r\n", "")
+    for line in encoded.split("\r\n"):
+        assert len(line.encode("utf-8")) <= 75
+    parsed = Calendar.from_ical(encoded)
+    assert not parsed.errors
+    assert not parsed.walk("VALARM")
+    (event,) = parsed.walk("VEVENT")
+    assert not event.errors
+    child = planning["events"][0]["child"].replace("\x01", "")
+    assert str(event["SUMMARY"]) == f"Opvang — Voorlopig — {child}"
+    assert str(event["CLASS"]) == "PRIVATE"
+    assert str(event["TRANSP"]) == "TRANSPARENT"
+    assert str(event["STATUS"]) == "TENTATIVE"
+    assert "Bevestiging vereist" in str(event["DESCRIPTION"])
+    assert "\n" in str(event["DESCRIPTION"])
+    assert "ATTENDEE" not in event and "ORGANIZER" not in event and "URL" not in event
+    assert "METHOD" not in parsed
+
+
+@pytest.mark.parametrize(
+    "start,end,start_utc,end_utc",
+    [
+        (
+            "2026-10-25T01:30:00+02:00",
+            "2026-10-25T03:30:00+01:00",
+            "2026-10-24T23:30:00+00:00",
+            "2026-10-25T02:30:00+00:00",
+        ),
+        (
+            "2026-03-29T01:30:00+01:00",
+            "2026-03-29T03:30:00+02:00",
+            "2026-03-29T00:30:00+00:00",
+            "2026-03-29T01:30:00+00:00",
+        ),
+    ],
+)
+def test_calendar_dst_instants_and_exclusive_end(start, end, start_utc, end_utc):
+    period = period_for(start[:10], start[:8] + str(int(start[8:10]) + 1))
+    planning = project_planning(payload([slot(start, end)]), "a", period)
+    (event,) = Calendar.from_ical(export_calendar(planning)).walk("VEVENT")
+    assert event.decoded("DTSTART") == datetime.fromisoformat(start_utc)
+    assert event.decoded("DTEND") == datetime.fromisoformat(end_utc)
+    assert event.decoded("DTSTAMP").utcoffset().total_seconds() == 0
+
+
+def test_calendar_identity_and_status_do_not_invent_confirmation_or_cancellation():
+    period = period_for("2026-10-25", "2026-10-26")
+    uids = []
+    for status, label in (
+        ("absent", "Afwezig"),
+        ("tentative", "Voorlopig"),
+        ("new", "Status onbekend"),
+    ):
+        planning = project_planning(payload([slot(status=status)]), "a", period)
+        (event,) = Calendar.from_ical(export_calendar(planning)).walk("VEVENT")
+        assert label in str(event["SUMMARY"])
+        assert str(event["X-OUDERAPP-STATUS"]) == planning["events"][0]["status"]
+        if status != "tentative":
+            assert "STATUS" not in event
+        uids.append(str(event["UID"]))
+    assert len(set(uids)) == 1
+    other = project_planning(payload(), "b", period)
+    (event,) = Calendar.from_ical(export_calendar(other)).walk("VEVENT")
+    assert str(event["UID"]) != uids[0]
+
+
+def test_calendar_removes_invalid_text_codepoints():
+    data = payload()
+    data["days"][0]["children"][0]["child"]["firstName"] = "A\ud800\x7fB"
+    planning = project_planning(data, "a", period_for("2026-10-25", "2026-10-26"))
+    (event,) = Calendar.from_ical(export_calendar(planning).encode("utf-8")).walk("VEVENT")
+    assert str(event["SUMMARY"]) == "Opvang — Voorlopig — AB"
+
+
+@pytest.mark.parametrize("problem", ["offline", "truncated", "empty"])
+async def test_calendar_refuses_incomplete_or_empty_snapshots_but_json_still_works(
+    hass, planning_account, mock_api, problem
+):
+    data = payload([slot(), slot("2026-10-25T10:00:00+01:00", "2026-10-25T11:00:00+01:00")])
+    if problem == "offline":
+        data["data_connector_offline"] = True
+    elif problem == "empty":
+        data["days"] = []
+    mock_api.async_get_planning.return_value = data
+    limit = 1 if problem == "truncated" else 50
+    result = await call_planning(hass, planning_account, Context(), limit=limit)
+    assert "calendar" not in result
+    with pytest.raises(CalendarExportError):
+        export_calendar(result)
+    with pytest.raises(HomeAssistantError):
+        await call_planning(hass, planning_account, Context(), limit=limit, format="ics")

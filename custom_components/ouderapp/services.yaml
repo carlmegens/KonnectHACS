@@ -42,6 +42,15 @@ get_planning:
   name: Read childcare planning
   description: Read up to 31 days of childcare slots. End date is exclusive, in Europe/Amsterdam. Administrators and trusted automations only; returned data is private.
   fields:
+    format:
+      name: Response format
+      description: JSON planning or an ICS snapshot in the calendar response field. ICS requires a non-empty, untruncated response without an offline warning. No file is written automatically.
+      default: json
+      selector:
+        select:
+          options:
+            - json
+            - ics
     config_entry_id:
       name: Account
       required: true

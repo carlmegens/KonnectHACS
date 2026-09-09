@@ -7,6 +7,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.service import async_register_admin_service
 
 from .api import OuderAppAuthError, OuderAppError
+from .calendar_export import CalendarExportError, export_calendar
 from .const import DOMAIN
 from .dashboard import CONTENT_SCHEMA, DashboardError, read_content, source_for
 from .planning import limit_value, period_for, project_planning
@@ -97,6 +98,16 @@ def async_register_services(hass: HomeAssistant) -> None:
                 or coordinator.content_auth_failed
             ):
                 raise HomeAssistantError("OuderApp account is not loaded")
+        if call.data["format"] == "ics":
+            try:
+                calendar = export_calendar(result)
+            except CalendarExportError as err:
+                raise ServiceValidationError(str(err)) from None
+            return result | {
+                "calendar": calendar,
+                "filename": f"ouderapp-{period.start.isoformat()}-{period.end.isoformat()}.ics",
+                "content_type": "text/calendar; charset=utf-8",
+            }
         return result
 
     async_register_admin_service(
@@ -110,6 +121,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                 vol.Required("start_date"): str,
                 vol.Required("end_date"): str,
                 vol.Optional("limit", default=50): limit_value,
+                vol.Optional("format", default="json"): vol.In(("json", "ics")),
             }
         ),
         supports_response=SupportsResponse.ONLY,

@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.3.1 — kalenderexport voor automatiseringen
+
+De beheerderactie `ouderapp.get_planning` ondersteunt `format: ics`. Het antwoord bevat naast de bestaande velden een begrensde kalendertekst, bestandsnaam en inhoudstype. Standaard blijft de actie JSON teruggeven. Geen bestand wordt automatisch opgeslagen; geen abonnements-URL of downloadroute toegevoegd.
+
+UTC-tijden, UTF-8-regelvouwen en tekstescaping worden met een onafhankelijke kalenderparser gecontroleerd. Titels behouden voorlopige, afwezige of onbekende status en de beschikbare kindnaam; er wordt geen bevestiging of annulering aangenomen. De momenten blokkeren geen beschikbaarheid. Lege/afgekorte selecties en offlinewaarschuwingen leveren bij export een duidelijke fout op.
+
+De export is een momentopname. Herhaalde import kan duplicaten geven en verplaatste/verwijderde momenten ruimen eerdere imports niet op; gebruik een vervangbare aparte kalender. Toegangscontrole is gelijk aan JSON, inclusief hercontrole na het ophalen. Synthetisch getest; nog geen praktijkbewijs met een ouderaccount of kalenderapp.
+
 ## 0.3.0 — begrensde opvangplanning lezen
 
 Nieuwe beheerderactie `ouderapp.get_planning` voor een expliciete periode van maximaal 31 dagen, met maximaal 100 chronologisch gesorteerde opvangmomenten. De einddatum is exclusief; datums gelden in Europe/Amsterdam. Tijdzone-overgangen, periodegrenzen, lege lijsten en ongeldige brondata worden gecontroleerd.
