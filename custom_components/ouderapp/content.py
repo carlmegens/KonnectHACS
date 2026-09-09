@@ -287,7 +287,9 @@ class OuderAppContent:
             self._remove_ref(next(iter(self._refs)))
         return media_id
 
-    def _project(self, kind: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    def _project(
+        self, kind: str, rows: list[dict[str, Any]], *, detail: bool = False
+    ) -> dict[str, Any]:
         """Allowlist observed fields; never expose raw provider data or HTML."""
         items = []
         for index, row in enumerate(rows[:CONTENT_LIMIT]):
@@ -316,6 +318,12 @@ class OuderAppContent:
             elif kind == "newsletters":
                 title, text = row.get("mailSubject"), row.get("contentSnippet")
                 date, unread = row.get("sendDate"), row.get("unread")
+            article_id = None
+            if kind in ("news", "newsletters"):
+                field = "htmlContentId" if kind == "news" else "generatedHtmlNewsLetterId"
+                article_id = conversation_id(row.get(field))
+                if detail:
+                    text = row.get("detail_html")
             images = []
             if isinstance(photos, list):
                 for photo in photos[:3]:
@@ -328,19 +336,30 @@ class OuderAppContent:
                             continue
                         images.append({"id": self._media_id(url), "name": "Foto"})
                         break
+            contents = _safe_text(text, 200000 if detail else 20000)
+            truncated = detail and (
+                len(contents) > 20000 or (isinstance(text, str) and len(text) > 200000)
+            )
             items.append(
                 {
                     "id": str(index),
                     "title": _safe_text(title, 1000),
-                    "contents": _safe_text(text),
+                    "contents": contents[:20000],
+                    "truncated": truncated,
                     "sender": _safe_text(sender, 256),
                     "created_at": _safe_text(date, 128),
                     "unread": unread if type(unread) is bool else None,
                     "conversation_id": detail_id,
+                    "article_id": article_id,
                     "images": images,
                 }
             )
-        return {"items": items, "updated_at": datetime.now(UTC).isoformat(), "kind": kind}
+        return {
+            "items": items,
+            "updated_at": datetime.now(UTC).isoformat(),
+            "kind": kind,
+            "detail": detail,
+        }
 
     def _response(self, cached: _FeedCache, limit: int, *, stale: bool) -> dict[str, Any]:
         result = deepcopy(cached.value)
@@ -350,7 +369,11 @@ class OuderAppContent:
         return {**result, "returned": len(result["items"]), "limit": limit, "stale": stale}
 
     async def async_get_content(
-        self, kind: str, limit: int = DEFAULT_CONTENT_LIMIT, conversation: str | None = None
+        self,
+        kind: str,
+        limit: int = DEFAULT_CONTENT_LIMIT,
+        conversation: str | None = None,
+        article: str | None = None,
     ) -> dict[str, Any]:
         if type(limit) is not int or not 1 <= limit <= CONTENT_LIMIT:
             raise OuderAppError("Invalid limit")
@@ -364,7 +387,11 @@ class OuderAppContent:
                 raise OuderAppError("Invalid conversation")
         elif conversation is not None:
             raise OuderAppError("Unexpected conversation")
-        key = (kind, conversation)
+        if article is not None and (
+            kind not in ("news", "newsletters") or conversation_id(article) != article
+        ):
+            raise OuderAppError("Invalid article")
+        key = (kind, article or conversation)
         async with self._feed_lock:
             self._require_open()
             self._prune()
@@ -377,7 +404,9 @@ class OuderAppContent:
                     return self._response(cached, limit, stale=True)
                 raise OuderAppConnectionError("Please try again later")
             try:
-                if kind == "messages":
+                if article is not None:
+                    rows = await self.api.async_get_article(kind, article)
+                elif kind == "messages":
                     rows = await self.api.async_get_conversation(conversation, CONTENT_LIMIT)
                 else:
                     method = getattr(
@@ -404,7 +433,7 @@ class OuderAppContent:
             self._require_open()
             self._retry_at = 0.0
             self._failures = 0
-            cached = _FeedCache(self._project(kind, rows), _now())
+            cached = _FeedCache(self._project(kind, rows, detail=article is not None), _now())
             self._feeds[key] = cached
             self._feeds.move_to_end(key)
             while len(self._feeds) > MAX_FEED_CACHES:

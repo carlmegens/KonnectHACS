@@ -106,6 +106,7 @@ CONTENT_SCHEMA = {
     vol.Required("kind"): vol.In(CONTENT_KINDS),
     vol.Optional("limit", default=DEFAULT_CONTENT_LIMIT): limit_value,
     vol.Optional("conversation"): conversation_value,
+    vol.Optional("article"): conversation_value,
 }
 
 
@@ -143,6 +144,7 @@ async def websocket_content(hass: HomeAssistant, connection: Any, msg: dict[str,
             msg["kind"],
             limit=msg["limit"],
             conversation=msg.get("conversation"),
+            article=msg.get("article"),
         )
     except DashboardError as err:
         connection.send_error(msg["id"], err.code, "OuderApp content is unavailable")
@@ -159,7 +161,7 @@ class OuderAppContentView(HomeAssistantView):
 
     async def get(self, request: web.Request, config_entry_id: str) -> web.Response:
         try:
-            if set(request.query) - {"kind", "limit", "conversation"} or any(
+            if set(request.query) - {"kind", "limit", "conversation", "article"} or any(
                 len(request.query.getall(key)) > 1 for key in request.query
             ):
                 raise ValueError

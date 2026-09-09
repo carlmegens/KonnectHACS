@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.2.0 — nieuws en nieuwsbrieven openen
+
+Titels in de nieuws- en nieuwsbriefweergave halen bij uitklappen de tekst op. De server controleert eerst of de detailverwijzing in het begrensde overzicht van hetzelfde account en dezelfde bron staat. Details gebruiken de bestaande toegangsrechten, cachelimieten en sessieafhandeling. Bij accountwissel, verborgen kaart of ingetrokken toegang worden oude of late antwoorden niet getoond.
+
+Nieuws gebruikt de actuele HTML-inhoudscontainer; nieuwsbrieven gebruiken de gegenereerde nieuwsbrief. Alleen gewone tekst wordt getoond, maximaal 20.000 tekens, met aanduiding bij inkorten. Geen externe embeds, trackingafbeeldingen, expliciete leesmarkeringen of provider-schrijfhandelingen. Detailfouten kunnen opnieuw worden geprobeerd.
+
+De gebruiker bevestigde dat aanmelden werkt na versie 0.1.3. De nieuwe detailweergave is met synthetische HA- en browserproeven gecontroleerd; een live controle per inhoudsbron blijft open.
+
 ## 0.1.3 — clientherkenning bij aanmelden
 
 API-aanroepen sturen nu `X-Client-Name: OuderApp` en de protocolversie `3.64.1` mee, overeenkomstig de HTTP-interceptor van de onderzochte officiële app. Deze headers ontbraken bij aanmelden en sessievernieuwing. De integratie blijft via haar User-Agent herkenbaar als Home Assistant.

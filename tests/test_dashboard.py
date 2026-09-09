@@ -125,10 +125,10 @@ async def test_http_invalid_queries(account, hass_client, query):
     account.runtime_data.content.async_get_content.assert_not_awaited()
 
 
-@pytest.mark.parametrize("image", [False, True])
+@pytest.mark.parametrize("surface", ["feed", "image", "article"])
 @pytest.mark.parametrize("change", ["revoke", "disable", "unload", "reload", "auth"])
 async def test_access_change_during_read_withholds_content(
-    hass, account, hass_client, hass_read_only_user, hass_read_only_access_token, image, change
+    hass, account, hass_client, hass_read_only_user, hass_read_only_access_token, surface, change
 ):
     hass.config_entries.async_update_entry(
         account, options={"dashboard_viewers": [hass_read_only_user.id]}
@@ -146,12 +146,18 @@ async def test_access_change_during_read_withholds_content(
             account.runtime_data = object()
         else:
             coordinator.invalidate_auth()
-        return (b"PRIVATE-PHOTO", "image/jpeg") if image else FEED
+        return (b"PRIVATE-PHOTO", "image/jpeg") if surface == "image" else FEED
 
-    method = coordinator.content.async_get_image if image else coordinator.content.async_get_content
+    method = (
+        coordinator.content.async_get_image
+        if surface == "image"
+        else coordinator.content.async_get_content
+    )
     method.side_effect = changing
     client = await hass_client(hass_read_only_access_token)
-    suffix = "image/timeline/" + "x" * 32 if image else "content?kind=timeline"
+    suffix = "image/timeline/" + "x" * 32 if surface == "image" else "content?kind=timeline"
+    if surface == "article":
+        suffix = "content?kind=news&article=42"
     try:
         response = await client.get(f"/api/ouderapp/{account.entry_id}/{suffix}")
         assert response.status in (403, 503)

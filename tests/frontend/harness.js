@@ -34,7 +34,7 @@ const items = [
 ];
 window.fixture = {
   items, calls:[], photoCalls:[], revoked:[], state:params.get('state')||'ready', deferred:[], userId:'synthetic-user', imageStatus:200,
-  pendingTypes:[],
+  pendingTypes:[], articlePending:false, articleError:null,
   conversations:[{id:'101',title:'Contact met het voorbeeldteam',type:'private',sort_date:'2026-09-08T09:30:00+02:00',unread_count:2},{id:'202',title:'Bibliotheekbezoek',type:'group',sort_date:'2026-09-07T13:00:00+02:00',unread_count:0}],
   chatItems:{
     '101':[{id:'1001',contents:'Goedemorgen! Hierbij een kleine indruk van het tuinproject. De groep heeft vandaag de eerste plantjes verzorgd.',sender:'Team voorbeeldopvang',created_at:'2026-09-08T09:30:00+02:00',images:[{id:'dddddddddddddddddddddddddddddddd',name:'Synthetische gespreksfoto'}]},{id:'1002',contents:'Bedankt voor het bericht. Leuk om te zien waar jullie aan werken!',sender:'Voorbeeldouder',created_at:'2026-09-08T09:15:00+02:00',images:[]}],
@@ -54,6 +54,8 @@ window.makeHass = (userId=fixture.userId) => ({
     if(request.type === 'ouderapp/content' && !['timeline','news','newsletters','conversations','messages'].includes(request.kind)) throw {code:'invalid_format'};
     if(request.kind === 'messages' && !/^[1-9][0-9]{0,19}$/.test(request.conversation)) throw {code:'invalid_format'};
     if (request.type === 'ouderapp/accounts') return {accounts:fixture.state==='noaccount'||(request.source==='messages'&&!fixture.chatAllowed)?[]:fixture.accounts};
+    if (request.article && fixture.articlePending) return new Promise((resolve,reject)=>fixture.deferred.push({resolve,reject,request}));
+    if (request.article && fixture.articleError) throw {code:fixture.articleError, message:'PRIVATE RAW ERROR'};
     if (fixture.state === 'loading' || fixture.pendingTypes.includes(request.kind)) return new Promise((resolve,reject)=>fixture.deferred.push({resolve,reject,request}));
     if (['unauthorized','not_loaded','cannot_connect','authentication_expired','unsupported_response'].includes(fixture.state)) throw {code:fixture.state,message:'Never show this private raw error'};
     if(request.kind==='conversations') return {items:fixture.state==='noConversations'?[]:fixture.conversations.map(room=>({...room,conversation_id:room.id})),returned:fixture.conversations.length,limit:20};
@@ -61,6 +63,7 @@ window.makeHass = (userId=fixture.userId) => ({
       const selected=fixture.state==='empty'?[]:(fixture.chatItems[request.conversation]||[]).slice(0,request.limit);
       return {items:selected,conversation:fixture.conversations.find(room=>room.id===request.conversation),returned:selected.length,limit:request.limit,updated_at:'2026-09-08T09:35:00+02:00',stale:false};
     }
+    if (request.article) return {detail:true, items:[{article_id:request.article, contents:'Volledige tekst voor '+request.kind+' '+request.article, images:[]}], stale:false};
     const selected=fixture.state==='empty'?[]:fixture.items.filter(item=>!request.group_id || item.group_id===request.group_id).slice(0,request.limit);
     return {items:selected,groups:fixture.groups,returned:selected.length,limit:request.limit,updated_at:'2026-09-08T09:00:00+02:00',stale:fixture.state==='stale'};
   },

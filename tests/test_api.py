@@ -431,3 +431,80 @@ def test_diagnostic_code_cannot_contain_arbitrary_details():
 
     error = OuderAppResponseError("SYNTHETIC-TOKEN", "SYNTHETIC-USERNAME", "SYNTHETIC-STATUS")
     assert str(error) == error.code == "unknown.unknown"
+
+
+@pytest.mark.parametrize(
+    "kind,field,route",
+    [
+        ("news", "htmlContentId", "/htmlcontent/container/"),
+        ("newsletters", "generatedHtmlNewsLetterId", "/newsletter/generated/"),
+    ],
+)
+async def test_article_detail_requires_current_source_membership(session, kind, field, route):
+    requests = []
+    permitted = True
+
+    def handle(request):
+        requests.append(request.url.path)
+        assert request.method == "GET"
+        assert request.url.host == "example.ouderportaal.nl"
+        if request.url.path.endswith(route + "42"):
+            return httpx.Response(
+                200,
+                json={
+                    "result": True,
+                    "payload": (
+                        {"fullSource": "<p>Newsletter body</p>"}
+                        if kind == "newsletters"
+                        else {
+                            "items": [
+                                {"itemParts": [{"content": "<p>News body</p>"}, {"content": None}]}
+                            ]
+                        }
+                    ),
+                },
+            )
+        rows = [{field: 42, "title": "Synthetic"}] if permitted else []
+        return httpx.Response(
+            200, json={"newsletterItems": rows} if kind == "newsletters" else rows
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        api = OuderAppApi(client, "example", session)
+        result = await api.async_get_article(kind, "42")
+        assert "body" in result[0]["detail_html"]
+        assert requests[-1] == "/restservices-parent" + route + "42"
+        permitted = False
+        requests.clear()
+        with pytest.raises(OuderAppError):
+            await api.async_get_article(kind, "42")
+        assert len(requests) == 1  # Removed/other-account ID never reaches the detail route.
+        for bad in ("../42", "0", "1?private", True, 42, "9" * 21):
+            requests.clear()
+            with pytest.raises(ValueError):
+                await api.async_get_article(kind, bad)
+            assert not requests
+
+
+@pytest.mark.parametrize(
+    "kind,payload",
+    [
+        ("newsletters", {}),
+        ("newsletters", {"fullSource": []}),
+        ("news", {"items": "bad"}),
+        ("news", {"items": [{"itemParts": [{}, {"content": {}}]}]}),
+    ],
+)
+async def test_article_detail_rejects_unknown_shapes(session, kind, payload):
+    def handle(request):
+        if request.url.path.endswith("/newsletter"):
+            return httpx.Response(
+                200, json={"newsletterItems": [{"generatedHtmlNewsLetterId": "42"}]}
+            )
+        if request.url.path.endswith("/htmlnews/view"):
+            return httpx.Response(200, json=[{"htmlContentId": "42"}])
+        return httpx.Response(200, json=payload)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(OuderAppError):
+            await OuderAppApi(client, "example", session).async_get_article(kind, "42")

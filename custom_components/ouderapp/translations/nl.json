@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Aanmelden bij OuderApp",
-        "description": "Vul de portaalnaam van je opvang in, bijvoorbeeld deeerstestap. Deze ontwikkelversie is nog niet met een echt ouderaccount gecontroleerd.",
+        "description": "Vul de portaalnaam van je opvang in, bijvoorbeeld deeerstestap.",
         "data": {
           "portal": "Ouderportaal",
           "username": "Gebruikersnaam",

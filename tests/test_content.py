@@ -224,3 +224,76 @@ async def test_transport_failure_backoff_bounds_concurrent_retries_and_recovers(
     assert (await feed.async_get_content("timeline"))["returned"] == 2
     assert feed._failures == 0 and feed._retry_at == 0
     await feed.async_close()
+
+
+@pytest.mark.parametrize(
+    "kind,field", [("news", "htmlContentId"), ("newsletters", "generatedHtmlNewsLetterId")]
+)
+async def test_article_is_on_demand_plain_text_and_separately_cached(hass, kind, field):
+    api = AsyncMock()
+    row = {
+        field: 42,
+        "title": "Title",
+        "contentSnippet": "Preview",
+        "detail_html": "PROVIDER-FIELD-MUST-NOT-LEAK",
+    }
+    getattr(api, "async_get_news" if kind == "news" else "async_get_newsletters").return_value = [
+        row
+    ]
+    api.async_get_article.return_value = [
+        {
+            **row,
+            "detail_html": "<style>"
+            + "x" * 22000
+            + '</style><p>Complete body</p><iframe src="https://private.invalid"></iframe><script>private-script</script>',
+        }
+    ]
+    feed = OuderAppContent(hass, api)
+    listing = await feed.async_get_content(kind)
+    api.async_get_article.assert_not_awaited()
+    assert listing["items"][0]["article_id"] == "42"
+    assert listing["items"][0]["contents"] == "Preview"
+    assert not listing["detail"]
+    detail = await feed.async_get_content(kind, article="42")
+    assert detail["detail"]
+    assert detail["items"][0]["contents"] == "Complete body"
+    assert detail["items"][0]["images"] == []
+    assert not detail["items"][0]["truncated"]
+    assert (await feed.async_get_content(kind, article="42")) == detail
+    api.async_get_article.assert_awaited_once_with(kind, "42")
+    assert (await feed.async_get_content(kind))["items"][0]["contents"] == "Preview"
+    for source, article in (("timeline", "42"), ("messages", "42"), (kind, "../42"), (kind, 42)):
+        with pytest.raises(OuderAppError):
+            await feed.async_get_content(source, article=article)
+    await feed.async_close()
+
+
+async def test_article_cache_stale_then_auth_failure_and_late_invalidation(hass, monkeypatch):
+    now = 1000
+    monkeypatch.setattr(module, "_now", lambda: now)
+    api = AsyncMock()
+    api.async_get_article.return_value = [{"htmlContentId": 42, "detail_html": "x" * 25000}]
+    feed = OuderAppContent(hass, api)
+    result = await feed.async_get_content("news", article="42")
+    assert result["items"][0]["truncated"]
+    assert len(result["items"][0]["contents"]) == 20000
+    now += 301
+    api.async_get_article.side_effect = OuderAppConnectionError()
+    assert (await feed.async_get_content("news", article="42"))["stale"]
+    now += 301
+    api.async_get_article.side_effect = OuderAppAuthError()
+    with pytest.raises(OuderAppAuthError):
+        await feed.async_get_content("news", article="42")
+    assert not feed._feeds
+    await feed.async_close()
+    feed = OuderAppContent(hass, api)
+
+    async def invalidate(*args):
+        feed.invalidate()
+        return [{"htmlContentId": 42, "detail_html": "late private"}]
+
+    api.async_get_article.side_effect = invalidate
+    with pytest.raises(OuderAppError):
+        await feed.async_get_content("news", article="42")
+    assert not feed._feeds
+    await feed.async_close()

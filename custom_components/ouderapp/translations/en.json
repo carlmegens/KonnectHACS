@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Sign in to OuderApp",
-        "description": "Use the portal name for your childcare provider, for example deeerstestap. This development version has not yet been verified with a real parent account.",
+        "description": "Enter your childcare portal name, for example deeerstestap.",
         "data": {
           "portal": "Portal",
           "username": "Username",

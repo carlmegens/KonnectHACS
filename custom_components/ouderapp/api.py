@@ -395,6 +395,49 @@ class OuderAppApi:
         self._limit(limit)
         return _items(await self._get("/htmlnews/view"))[:limit]
 
+    async def async_get_article(self, kind: str, article: str) -> list[dict[str, Any]]:
+        """Read one article only after proving membership of this account/source."""
+        if (
+            kind not in ("news", "newsletters")
+            or not isinstance(article, str)
+            or not re.fullmatch(r"[0-9]{1,20}", article)
+            or int(article) <= 0
+        ):
+            raise ValueError("Invalid article")
+        if kind == "news":
+            rows = await self.async_get_news(20)
+            field, route = "htmlContentId", "/htmlcontent/container/"
+        else:
+            rows = await self.async_get_newsletters(20)
+            field, route = "generatedHtmlNewsLetterId", "/newsletter/generated/"
+        row = next(
+            (
+                item
+                for item in rows
+                if type(item.get(field)) in (int, str) and str(item[field]) == article
+            ),
+            None,
+        )
+        if row is None:
+            raise OuderAppError("Article unavailable in this account/source")
+        detail = _object(await self._get(route + article))
+        if kind == "newsletters":
+            html = detail.get("fullSource")
+            if not isinstance(html, str):
+                raise OuderAppError("Unexpected article shape")
+        else:
+            sections = _items(detail, "items")
+            parts = []
+            for section in sections:
+                for part in _items(section, "itemParts"):
+                    value = part.get("content")
+                    if value is not None and not isinstance(value, str):
+                        raise OuderAppError("Unexpected article shape")
+                    if value:
+                        parts.append(value)
+            html = "\n".join(parts)
+        return [{**row, "detail_html": html}]
+
     async def async_get_conversation(
         self, conversation: str, limit: int = 20
     ) -> list[dict[str, Any]]:

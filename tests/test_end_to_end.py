@@ -28,6 +28,20 @@ async def test_real_flow_transport_refresh_and_unload(hass, hass_ws_client):
             return httpx.Response(200, json={"username": "parent@example.invalid"})
         if path == "/restservices-parent/parent":
             return httpx.Response(200, json={"fullname": "Synthetic Parent"})
+        if path == "/restservices-parent/htmlnews/view":
+            return httpx.Response(
+                200, json=[{"title": "News", "htmlContentId": 42, "contentSnippet": "Preview"}]
+            )
+        if path == "/restservices-parent/htmlcontent/container/42":
+            return httpx.Response(
+                200,
+                json={
+                    "result": True,
+                    "payload": {
+                        "items": [{"itemParts": [{"content": "<p>SYNTHETIC-PRIVATE-ARTICLE</p>"}]}]
+                    },
+                },
+            )
         if path == "/restservices-parent/children/":
             return httpx.Response(200, json={"activeChildren": [{"id": "c1"}]})
         if path == "/restservices-parent/notification/notifications":
@@ -79,6 +93,18 @@ async def test_real_flow_transport_refresh_and_unload(hass, hass_ws_client):
             reload.assert_not_called()
         assert items[0]["contents"] == "SYNTHETIC-PRIVATE-TIMELINE"
         assert entry.data["session"]["refresh_token"] == "r2"
+        await client.send_json_auto_id(
+            {
+                "type": "ouderapp/content",
+                "kind": "news",
+                "article": "42",
+                "config_entry_id": entry.entry_id,
+            }
+        )
+        article = await client.receive_json()
+        assert article["success"]
+        assert article["result"]["detail"]
+        assert article["result"]["items"][0]["contents"] == "SYNTHETIC-PRIVATE-ARTICLE"
         dump = str([s.as_dict() for s in hass.states.async_all()])
         for secret in ("SYNTHETIC-PRIVATE", "parent@example.invalid", "SYNTHETIC-SECRET"):
             assert secret not in dump

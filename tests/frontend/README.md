@@ -29,3 +29,5 @@ The browser checks cover authenticated blob photos, message/photo keyboard contr
 Set `OUDERAPP_SKIP_SCREENSHOTS=1` to run only functional checks, `OUDERAPP_PREVIEW_PORT` to change the preview port, or `OUDERAPP_PREVIEW_URL` to test a different local harness URL.
 
 These checks establish the custom element's behavior against the integration's WebSocket and authenticated-image contract. A final check in Home Assistant is still needed to validate installation, resource registration, theme integration and real server permissions.
+
+Article checks exercise on-demand news/newsletter expansion, keyboard focus, retry, collapse during a pending request, account changes and access revocation. New screenshots show expanded articles on desktop and mobile.

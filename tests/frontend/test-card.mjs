@@ -185,10 +185,52 @@ try {
   await page.locator('ouderapp-panel >> #tab-timeline').focus(); await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('ouderapp-panel >> #tab-news').getAttribute('aria-selected'),'true');
  });
+ await test('news and newsletter text loads only on expansion, stays plain, and preserves keyboard focus',async()=>{
+  for(const source of ['news','newsletters']) {
+   await ready('?source='+source);
+   await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Nieuwsbericht',contents:'Korte voorvertoning',images:[]}];await card._load(true);});
+   assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.article).length),0);
+   const toggle=page.locator('ouderapp-card >> .toggle').first();await toggle.focus();await page.keyboard.press('Enter');
+   await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);
+   assert.match(await page.locator('ouderapp-card >> .body').innerText(),/Volledige tekst/);
+   assert.equal(await toggle.evaluate(el=>el.getRootNode().activeElement===el),true);
+   await toggle.click();await toggle.click();assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.article).length),1);
+   await page.evaluate(()=>{Array.from(card._articles.values())[0].stale=true;Array.from(card._articles.values())[0].value.truncated=true;Array.from(card._articles.values())[0].value.contents='<img src=x onerror="window.__xss=1">';card._render();});
+   assert.equal(await count('img'),0);assert.equal(await page.evaluate(()=>window.__xss),undefined);
+   const notice=await page.locator('ouderapp-card >> article').innerText();assert.match(notice,/ingekort/);assert.match(notice,/eerder opgehaalde/);
+  }
+ });
+ await test('article errors allow retry and late results cannot cross account changes or closure',async()=>{
+  await ready('?source=news');
+  await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Detail',contents:'Preview',images:[]}];fixture.articleError='cannot_connect';await card._load(true);});
+  await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.error);
+  assert.match(await page.locator('ouderapp-card >> ha-card').innerText(),/kon niet worden opgehaald/);
+  await page.evaluate(()=>{fixture.articleError=null;fixture.articlePending=true;});
+  await page.locator('ouderapp-card >> .text-button').click();await page.waitForFunction(()=>fixture.deferred.length===1);
+  await page.locator('ouderapp-card >> .toggle').click();
+  await page.evaluate(()=>fixture.deferred[0].resolve({detail:true,items:[{article_id:'42',contents:'Secret detail',images:[]}]}));
+  await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);
+  assert.ok(!(await page.locator('ouderapp-card >> ha-card').innerText()).includes('Secret detail'));
+  await page.evaluate(async()=>{await card._load(true);});await page.locator('ouderapp-card >> .toggle').click();
+  await page.waitForFunction(()=>fixture.deferred.length===2);
+  await page.evaluate(()=>card.setConfig({...card._config,config_entry_id:'second-account'}));
+  await page.waitForFunction(()=>!card._loading);
+  await page.evaluate(()=>fixture.deferred[1].resolve({detail:true,items:[{article_id:'42',contents:'OLD ACCOUNT SECRET',images:[]}]}));
+  await page.waitForTimeout(40);assert.equal(await page.evaluate(()=>card._articles.size),0);
+  assert.ok(!(await page.locator('ouderapp-card >> ha-card').innerText()).includes('OLD ACCOUNT SECRET'));
+ });
+ await test('article access revocation clears the entire visible feed',async()=>{
+  await ready('?source=newsletters');
+  await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Private newsletter',contents:'Private preview',images:[]}];fixture.articleError='unauthorized';await card._load(true);});
+  await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>card._error==='unauthorized');
+  assert.equal(await count('article'),0);assert.equal(await page.evaluate(()=>card._articles.size),0);
+ });
  if(!process.env.OUDERAPP_SKIP_SCREENSHOTS) {
  // One batched visual inspection: desktop/light + mobile/dark + editor + loading/error.
  const artifacts=new URL('./artifacts/',import.meta.url);await mkdir(artifacts,{recursive:true});
  for(const shot of [
+  {name:'newsletter-detail-desktop',width:1100,height:950,query:'?source=newsletters',article:true},
+  {name:'news-detail-mobile',width:390,height:950,query:'?source=news&theme=dark',article:true},
   {name:'desktop-light',width:1100,height:1050,query:''},
   {name:'mobile-dark',width:390,height:1000,query:'?theme=dark'},
   {name:'messages-desktop',width:1100,height:950,query:'?source=messages&room=101'},
@@ -202,6 +244,7 @@ try {
  ]) {
   await page.setViewportSize({width:shot.width,height:shot.height});await page.goto(base+shot.query);
   if(shot.name!=='loading')await page.waitForFunction(()=>card._started&&!card._loading);
+  if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
   if(shot.selectRoom){await page.locator('ouderapp-card >> #conversation').selectOption(shot.selectRoom);await page.waitForFunction(()=>card._data?.items.length>0);}
   await page.waitForTimeout(100);await page.screenshot({path:new URL(shot.name+'.png',artifacts).pathname,fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow: ${shot.name}`);

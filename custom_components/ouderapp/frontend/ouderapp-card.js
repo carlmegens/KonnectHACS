@@ -1,4 +1,4 @@
-/* OuderApp card 0.1.3 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.2.0 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -16,6 +16,7 @@ const STRINGS = {
     not_loaded: 'OuderApp is nog niet beschikbaar', not_loadedHint: 'Controleer de OuderApp-integratie bij Apparaten en diensten.',
     cannot_connect: 'OuderApp is niet bereikbaar', cannot_connectHint: 'Probeer het straks opnieuw.',
     unsupported_response: 'Berichten konden niet worden geladen', unsupported_responseHint: 'Probeer opnieuw of controleer of er een update voor OuderApp is.',
+    articleLoading: 'Tekst ophalen…', articleError: 'Tekst kon niet worden opgehaald.', articleEmpty: 'Dit item bevat geen ondersteunde tekst.', articlePreview: 'Alleen voorvertoning beschikbaar.', articleTruncated: 'Lange tekst is ingekort.',
     updated: 'Bijgewerkt', stale: 'Tijdelijk eerder opgehaalde berichten', read: 'Bericht lezen', close: 'Bericht sluiten',
     photo: 'Foto', openPhoto: 'Foto vergroten', closePhoto: 'Vergrote foto sluiten', photoError: 'Foto niet beschikbaar',
     account: 'Account', group: 'Groep', allGroups: 'Alle groepen', title: 'Titel', limit: 'Aantal items',
@@ -39,6 +40,7 @@ const STRINGS = {
     not_loaded: 'OuderApp is not available yet', not_loadedHint: 'Check the OuderApp integration in Devices & services.',
     cannot_connect: 'Cannot reach OuderApp', cannot_connectHint: 'Please try again later.',
     unsupported_response: 'Could not load announcements', unsupported_responseHint: 'Try again or check for a OuderApp update.',
+    articleLoading: 'Loading text…', articleError: 'Could not load the text.', articleEmpty: 'This item has no supported text.', articlePreview: 'Only a preview is available.', articleTruncated: 'Long text has been shortened.',
     updated: 'Updated', stale: 'Showing previously fetched announcements temporarily', read: 'Read announcement', close: 'Close announcement',
     photo: 'Photo', openPhoto: 'Enlarge photo', closePhoto: 'Close enlarged photo', photoError: 'Photo unavailable',
     account: 'Account', group: 'Group', allGroups: 'All groups', title: 'Title', limit: 'Number of announcements',
@@ -166,6 +168,7 @@ class OuderAppCard extends HTMLElement {
     this._epoch = 0;
     this._mediaEpoch = 0;
     this._expanded = new Set();
+    this._articles = new Map();
     this._conversations = [];
     this._roomId = '';
     this._urls = new Map();
@@ -237,6 +240,7 @@ class OuderAppCard extends HTMLElement {
     clearTimeout(this._timer);
     this._clearPhotos();
     this._data = null;
+    this._articles.clear();
     this._conversations = [];
     this._error = null;
     this._loading = false;
@@ -247,6 +251,7 @@ class OuderAppCard extends HTMLElement {
     if (!this._hass || !this._eligible() || this._loading) return;
     if (!force && this._started && Date.now() - this._loadedAt < POLL_MS) { this._schedule(); return; }
     const epoch = ++this._epoch;
+    this._articles.clear();
     const hass = this._hass;
     this._loading = true;
     this._started = true;
@@ -295,6 +300,30 @@ class OuderAppCard extends HTMLElement {
       }
     }
   }
+  async _loadArticle(item, key) {
+    if (this._articles.has(key) || !this._eligible() || this._loading) return;
+    const id = item.article_id;
+    if (!['news', 'newsletters'].includes(this._config.source) || typeof id !== 'string' || !/^[0-9]{1,20}$/.test(id) || !/[1-9]/.test(id)) return;
+    const epoch = this._epoch;
+    const state = { loading: true };
+    this._articles.set(key, state);
+    this._render();
+    try {
+      const data = await this._hass.callWS({ type: 'ouderapp/content', config_entry_id: this._config.config_entry_id, kind: this._config.source, article: id, limit: 1 });
+      if (epoch !== this._epoch || this._articles.get(key) !== state) return;
+      if (data?.detail !== true || data?.items?.length !== 1 || data.items[0].article_id !== id) throw { code: 'unsupported_response' };
+      state.value = data.items[0]; state.stale = data.stale === true;
+    } catch (error) {
+      if (epoch !== this._epoch || this._articles.get(key) !== state) return;
+      const code = errorCode(error);
+      if (['unauthorized', 'authentication_expired', 'not_loaded'].includes(code)) {
+        this._discard(); this._started = true; this._error = code; this._render(); return;
+      }
+      state.error = true;
+    } finally {
+      if (epoch === this._epoch && this._articles.get(key) === state) { state.loading = false; this._render(); }
+    }
+  }
   _selectRoom(id) {
     this._discard(); this._roomId = id; this._render(); this._load();
   }
@@ -313,7 +342,7 @@ class OuderAppCard extends HTMLElement {
     const active = this.shadowRoot.activeElement;
     let pageActive = document.activeElement;
     while (pageActive?.shadowRoot?.activeElement) pageActive = pageActive.shadowRoot.activeElement;
-    const focusId = ['conversation', 'refresh'].includes(active?.id) ? active.id
+    const focusId = (['conversation', 'refresh'].includes(active?.id) || /^(toggle|retry)-[0-9]+$/.test(active?.id || '')) ? active.id
       : !active && (pageActive === document.body || pageActive === this) ? this._pendingFocus : null;
     this._pendingFocus = null;
     const t = words(this._hass);
@@ -375,16 +404,24 @@ class OuderAppCard extends HTMLElement {
         const title = safeText(item.title, 1000) || (this._config.source === 'messages' ? safeText(item.sender, 256) || t.message : t.untitled);
         const h3 = el('h3');
         const toggle = button(`${expanded ? t.close : t.read}: ${title}`, () => {
-          if (expanded) this._expanded.delete(key); else this._expanded.add(key);
+          if (expanded) this._expanded.delete(key); else { this._expanded.add(key); this._loadArticle(item, key); }
           this._render();
           this.shadowRoot.querySelector(`[data-index="${index}"]`)?.focus();
         }, 'toggle');
-        toggle.dataset.index = index; toggle.setAttribute('aria-expanded', String(expanded)); toggle.setAttribute('aria-controls', `body-${index}`);
+        toggle.id = `toggle-${index}`; toggle.dataset.index = index; toggle.setAttribute('aria-expanded', String(expanded)); toggle.setAttribute('aria-controls', `body-${index}`);
         toggle.append(el('span', '', title), icon(expanded ? 'chevron-up' : 'chevron-down')); h3.append(toggle); article.append(h3);
         if (item.sender && this._config.source !== 'messages') article.append(el('p', 'meta sender', safeText(item.sender, 256)));
-        const contents = safeText(item.contents);
+        const detail = expanded ? this._articles.get(key) : null;
+        const contents = safeText(detail?.value ? detail.value.contents : item.contents);
         const body = el('p', 'body', expanded || contents.length <= 180 ? contents : `${contents.slice(0, 180).trimEnd()}…`);
         body.id = `body-${index}`; article.append(body);
+        if (expanded && ['news', 'newsletters'].includes(this._config.source)) {
+          const label = detail?.loading ? t.articleLoading : detail?.error ? t.articleError : detail?.value ? [!contents ? t.articleEmpty : '', detail.value.truncated ? t.articleTruncated : '', detail.stale ? t.stale : ''].filter(Boolean).join(' ') : t.articlePreview;
+          if (label) { const status = el('p', 'meta', label); status.setAttribute('role', 'status'); article.append(status); }
+          if (detail?.error) {
+            const retry = button(t.retry, () => { this._articles.delete(key); this._loadArticle(item, key); }, 'text-button'); retry.id = `retry-${index}`; retry.textContent = t.retry; article.append(retry);
+          }
+        }
         const images = this._config.show_images && Array.isArray(item.images) ? item.images.slice(0, Math.min(3, photosLeft)) : [];
         if (images.length) {
           const grid = el('div', 'photos');
@@ -410,7 +447,7 @@ class OuderAppCard extends HTMLElement {
     // Loading temporarily removes or disables these controls. Restore only if
     // focus has not moved elsewhere while the request was in flight.
     if (focusId && this.isConnected) {
-      const target = this.shadowRoot.getElementById(focusId);
+      const target = this.shadowRoot.getElementById(focusId) || (focusId.startsWith('retry-') ? this.shadowRoot.getElementById(focusId.replace('retry-', 'toggle-')) : null);
       if (target && !target.disabled) target.focus({ preventScroll: true });
       else if (this._loading || !this._started) this._pendingFocus = focusId;
     }

@@ -32,3 +32,8 @@ get_content:
       description: Required for messages. Use conversation_id returned by conversations.
       selector:
         text:
+    article:
+      name: Article ID
+      description: Optional for news or newsletters. Use article_id from the same account and source to read one article.
+      selector:
+        text:
