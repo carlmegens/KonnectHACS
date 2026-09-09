@@ -220,6 +220,50 @@ def _attachment_names(value: Any) -> list[dict[str, str]]:
     return names
 
 
+def _photo_url(photo: Any) -> str | None:
+    if not isinstance(photo, dict) or photo.get("mediaType") == "video":
+        return None
+    for key in ("mediumUrl", "thumbUrl", "fullSizeUrl"):
+        try:
+            return _validated_url(photo.get(key))
+        except OuderAppMediaError:
+            continue
+    return None
+
+
+def _photo_identity(photo: Any) -> str | None:
+    value = photo.get("id") if isinstance(photo, dict) else None
+    if type(value) is int and value > 0:
+        return str(value)
+    if isinstance(value, str) and 0 < len(value) <= 128:
+        return value
+    return None
+
+
+def _timeline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove standalone copies only for supported photos shown in this journal selection."""
+    selected = rows[:CONTENT_LIMIT]
+    journal_ids = set()
+    for row in selected:
+        journal = row.get("journal")
+        if row.get("type") == "journal" and isinstance(journal, dict):
+            photos = journal.get("photos")
+            if isinstance(photos, list):
+                for photo in photos[:3]:
+                    if (identity := _photo_identity(photo)) and _photo_url(photo):
+                        journal_ids.add(identity)
+    result = []
+    for row in selected:
+        photos = row.get("photos")
+        if row.get("type") == "photo" and isinstance(photos, list) and photos:
+            remaining = [p for p in photos[:20] if _photo_identity(p) not in journal_ids]
+            if not remaining:
+                continue
+            row = {**row, "photos": remaining}
+        result.append(row)
+    return result
+
+
 def _decode_image(data: bytes) -> bytes:
     """Decode in the executor, then output a small JPEG with no original metadata."""
     try:
@@ -330,7 +374,8 @@ class OuderAppContent:
     ) -> dict[str, Any]:
         """Allowlist observed fields; never expose raw provider data or HTML."""
         items = []
-        for index, row in enumerate(rows[:CONTENT_LIMIT]):
+        selected = _timeline_rows(rows) if kind == "timeline" else rows[:CONTENT_LIMIT]
+        for index, row in enumerate(selected):
             title, text, sender = "", "", ""
             journal_parts = None
             attachments = []
@@ -376,17 +421,10 @@ class OuderAppContent:
                 for photo in photos[: 20 if detail and kind == "news" else 3]:
                     if len(images) >= 3:
                         break
-                    if not isinstance(photo, dict) or photo.get("mediaType") == "video":
-                        continue
-                    for key in ("mediumUrl", "thumbUrl", "fullSizeUrl"):
-                        try:
-                            url = _validated_url(photo.get(key))
-                        except OuderAppMediaError:
-                            continue
+                    if url := _photo_url(photo):
                         media_id = self._media_id(url)
                         if not any(image["id"] == media_id for image in images):
                             images.append({"id": media_id, "name": "Foto"})
-                        break
             contents = _safe_text(text, 200000 if detail else 20000)
             if journal_parts is not None:
                 contents = "\n\n".join(

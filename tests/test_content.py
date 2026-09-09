@@ -53,6 +53,57 @@ async def test_projection_and_media_ids_separate_accounts_and_sources(hass):
         await cache.async_close()
 
 
+async def test_timeline_standalone_photos_already_in_journal_are_removed_without_mutation(hass):
+    shared = {**PHOTO, "id": 42}
+    extra = {**PHOTO, "id": 43, "mediumUrl": URL.replace("photo.jpg", "other.jpg")}
+    rows = [
+        {"type": "photo", "photos": [shared]},
+        {"type": "photo", "photos": [shared, extra]},
+        {"type": "journal", "journal": {"photos": [shared], "journalContent": "Dagboek"}},
+    ]
+    original = json.dumps(rows)
+    api = AsyncMock()
+    api.async_get_timeline.return_value = rows
+    feed = OuderAppContent(hass, api)
+    result = await feed.async_get_content("timeline")
+    assert [item["title"] for item in result["items"]] == ["Foto's", "Dagboek"]
+    assert [len(item["images"]) for item in result["items"]] == [1, 1]
+    assert result["items"][0]["images"][0]["id"] != result["items"][1]["images"][0]["id"]
+    assert json.dumps(rows) == original
+    assert len(feed._refs) == 2
+    await feed.async_close()
+
+
+@pytest.mark.parametrize(
+    "journal_photo",
+    [
+        {"id": 42, "mediumUrl": "https://unsupported.invalid/image.jpg"},
+        {"id": 42, "mediumUrl": URL, "mediaType": "video"},
+        {"id": None, "mediumUrl": URL},
+        {"id": True, "mediumUrl": URL},
+    ],
+)
+def test_unsupported_or_unidentified_journal_photo_does_not_hide_standalone(journal_photo):
+    rows = [
+        {"type": "journal", "journal": {"photos": [journal_photo]}},
+        {"type": "photo", "photos": [{**PHOTO, "id": 42}]},
+    ]
+    assert len(module._timeline_rows(rows)) == 2
+
+
+def test_deduplication_respects_journal_photo_and_row_limits():
+    shared = {**PHOTO, "id": 42}
+    journal = {"type": "journal", "journal": {"photos": [None, None, None, shared]}}
+    standalone = {"type": "photo", "photos": [shared]}
+    assert len(module._timeline_rows([journal, standalone])) == 2
+    journal["journal"]["photos"] = [shared]
+    assert (
+        module._timeline_rows([standalone] + [{"type": "trigger"}] * 19 + [journal])[0]
+        == standalone
+    )
+    assert len(module._timeline_rows([standalone, journal])) == 1
+
+
 @pytest.mark.parametrize(
     "rhythm,diary,expected",
     [

@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.5.4 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.5.5 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -48,12 +48,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.5.4-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.5.5-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.4`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.5`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -158,7 +158,7 @@ Berichtdatums ondersteunen ISO-tekst en gehele milliseconden sinds de Unix-epoch
 ## Grenzen van deze versie
 
 - Inhoudsoverzichten: maximaal 20 items per aanvraag, eerste pagina; geen volledig archief. De aparte planningactie leest maximaal 31 dagen/100 opvangmomenten. Een kalenderabonnements-URL zoals bij Parro is niet aangetoond; het paneel biedt een planninglijst en ICS-download voor beheerders, zonder kalenderentiteit.
-- Alleen de geobserveerde tijdlijnsoorten dagboek en foto worden weergegeven. Actie- en toestemmingskaarten worden overgeslagen.
+- Alleen de geobserveerde tijdlijnsoorten dagboek en foto worden weergegeven. Losse foto’s met dezelfde bron-ID als een ondersteunde dagboekfoto in de opgehaalde selectie worden weggelaten; een daardoor volledig dubbele fotokaart verdwijnt. Dit geldt alleen voor de eerste drie ondersteunde foto-posities per dagboek en maximaal twintig kandidaten per fotokaart. Foto’s zonder bruikbare ID blijven behouden. Actie- en toestemmingskaarten worden overgeslagen.
 - Nieuws en nieuwsbrieven tonen eerst een samenvatting; uitklappen leest de beschikbare tekst. Nieuwsdetails tonen maximaal drie ondersteunde foto-elementen. Volledige HTML-opmaak, documentinhoud, enquêtes, video's, afbeeldingen uit vrije HTML en nieuwsbriefafbeeldingen worden niet weergegeven.
 - Maximaal drie foto's per item en twaalf zichtbaar per kaart. Alleen ontvangen HTTPS-foto-URL's op `resource.kidskonnect.cloud` worden ondersteund. Andere mediahosts blijven dicht totdat hun echte gebruik is geverifieerd.
 - Foto's worden begrensd gedownload, gecontroleerd en omgezet naar JPEG zonder oorspronkelijke metadata. Een verlopen of afwijkende foto verschijnt als niet beschikbaar.

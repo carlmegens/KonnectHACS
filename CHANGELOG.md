@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.5 — dubbele tijdlijnfoto’s weglaten
+
+Losse foto’s die al bij een dagboekbericht in de opgehaalde selectie staan, worden op bron-ID ontdubbeld. Een volledig dubbele fotokaart verdwijnt; overige foto’s blijven staan. Dit volgt de filtering in de officiële app, begrensd tot foto’s die de integratie ondersteunt en de eerste drie foto-posities per dagboek.
+
+Foto’s zonder bruikbare ID of met een niet-ondersteunde dagboekvariant worden niet op basis van een gok verwijderd. De oorspronkelijke bronlijsten blijven ongewijzigd en er komen geen extra aanvragen bij. De actuele officiële tijdlijnrenderer kent journal, photo en trigger; de fotoboekactiekaart blijft buiten deze leesintegratie.
+
 ## 0.5.4 — gerichte diagnose bij inhoudsfouten
 
 Kaart en nieuwsdetails tonen bij een niet-ondersteund antwoord een korte diagnosecode met kaartversie. Die onderscheidt onder meer een afwijkend antwoordformaat, ongeldige JSON en onverwachte lokale verwerking. De melding wordt gewist bij opnieuw laden, accountwissel en geslaagd herstel.
