@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.4.0 — foto’s in nieuwsdetails
+
+Uitklappen van een nieuwsbericht toont naast tekst maximaal drie ondersteunde foto-elementen uit de officiële nieuwsindelingen. De bestaande gescheiden rechten, afgeschermde fotoverwijzingen, hostcontrole en afbeeldingsverwerking gelden ook voor deze foto’s. Video-elementen, afgeschermde portretten, onbekende indelingen en niet-ondersteunde hosts worden overgeslagen. Nieuwsbrieven en vrije HTML-afbeeldingen blijven tekstweergave.
+
+Foto’s laden pas wanneer ze zichtbaar zijn. Inklappen verwijdert hun browser-URL’s; late fotodownloads voor verborgen elementen worden weggegooid. De optie Foto’s tonen en de totale limiet van twaalf zichtbare foto’s blijven gelden. Het broncontract is gecontroleerd in de openbare officiële app; echte nieuwsfoto’s zijn nog niet in de gebruikers-HA getest.
+
 ## 0.3.1 — kalenderexport voor automatiseringen
 
 De beheerderactie `ouderapp.get_planning` ondersteunt `format: ics`. Het antwoord bevat naast de bestaande velden een begrensde kalendertekst, bestandsnaam en inhoudstype. Standaard blijft de actie JSON teruggeven. Geen bestand wordt automatisch opgeslagen; geen abonnements-URL of downloadroute toegevoegd.

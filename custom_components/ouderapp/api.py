@@ -455,6 +455,7 @@ class OuderAppApi:
         if row is None:
             raise OuderAppError("Article unavailable in this account/source")
         detail = _object(await self._get(route + article))
+        photos = []
         if kind == "newsletters":
             html = detail.get("fullSource")
             if not isinstance(html, str):
@@ -463,14 +464,52 @@ class OuderAppApi:
             sections = _items(detail, "items")
             parts = []
             for section in sections:
-                for part in _items(section, "itemParts"):
+                # Official viewer layouts identify which columns contain photos.
+                layout = section.get("itemType")
+                columns = (
+                    layout.split("_")
+                    if isinstance(layout, str)
+                    and layout
+                    in {
+                        "img",
+                        "img_img",
+                        "img_img_img",
+                        "txt_img",
+                        "img_txt",
+                        "txt_img_txt",
+                        "txtwide_img",
+                        "img_txtwide",
+                        "imgcap_imgcap",
+                        "imgcap_imgcap_imgcap",
+                    }
+                    else []
+                )
+                for index, part in enumerate(_items(section, "itemParts")):
                     value = part.get("content")
                     if value is not None and not isinstance(value, str):
                         raise OuderAppError("Unexpected article shape")
                     if value:
                         parts.append(value)
+                    if (
+                        len(photos) >= 20
+                        or index >= len(columns)
+                        or columns[index] not in ("img", "imgcap")
+                        or part.get("containsVideo")
+                        or part.get("isLoggedInAsPhoto")
+                    ):
+                        continue
+                    photo = part.get("awsResourcePhoto")
+                    if not isinstance(photo, dict) or not photo.get("fullSizeUrl"):
+                        photo = part.get("photo")
+                        if not isinstance(photo, dict) or not photo.get("photoId"):
+                            continue
+                        # The legacy branch only proves medium/thumb URLs.
+                        photo = {key: photo.get(key) for key in ("mediumUrl", "thumbUrl")}
+                    photos.append(
+                        {key: photo.get(key) for key in ("mediumUrl", "thumbUrl", "fullSizeUrl")}
+                    )
             html = "\n".join(parts)
-        return [{**row, "detail_html": html}]
+        return [{**row, "detail_html": html, "detail_photos": photos}]
 
     async def async_get_conversation(
         self, conversation: str, limit: int = 20

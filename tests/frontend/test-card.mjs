@@ -219,6 +219,21 @@ try {
   await page.waitForTimeout(40);assert.equal(await page.evaluate(()=>card._articles.size),0);
   assert.ok(!(await page.locator('ouderapp-card >> ha-card').innerText()).includes('OLD ACCOUNT SECRET'));
  });
+ await test('news detail photos load on expansion, revoke on collapse and reject late photo results',async()=>{
+  await ready('?source=news');
+  await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Nieuws met foto',contents:'Preview',images:[]}];fixture.articleImages=[{id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',name:'Nieuwsfoto'}];await card._load(true);fixture.photoCalls=[];});
+  assert.equal(await count('.photo'),0);assert.equal(await page.evaluate(()=>fixture.photoCalls.length),0);
+  await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>card._urls.size===1);
+  assert.equal(await count('.photo img'),1);assert.match(await page.locator('ouderapp-card >> .photo img').getAttribute('src'),/^blob:/);
+  assert.match(await page.evaluate(()=>fixture.photoCalls[0]),/image\/timeline\//);
+  await page.locator('ouderapp-card >> .toggle').click();assert.equal(await count('.photo'),0);assert.equal(await page.evaluate(()=>card._urls.size),0);
+  assert.ok(await page.evaluate(()=>fixture.revoked.length>0));
+  await page.evaluate(()=>fixture.photoPending=true);await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>fixture.photoDeferred.length===1);
+  await page.locator('ouderapp-card >> .toggle').click();await page.evaluate(()=>fixture.photoDeferred[0]());await page.waitForFunction(()=>card._loadingPhotoIds.size===0);
+  assert.equal(await page.evaluate(()=>card._urls.size),0);assert.equal(await count('.photo'),0);
+  await page.evaluate(()=>{fixture.photoPending=false;card.setConfig({...card._config,show_images:false});});await page.waitForFunction(()=>!card._loading);await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);
+  assert.equal(await count('.photo'),0);
+ });
  await test('article access revocation clears the entire visible feed',async()=>{
   await ready('?source=newsletters');
   await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Private newsletter',contents:'Private preview',images:[]}];fixture.articleError='unauthorized';await card._load(true);});
@@ -244,7 +259,7 @@ try {
  ]) {
   await page.setViewportSize({width:shot.width,height:shot.height});await page.goto(base+shot.query);
   if(shot.name!=='loading')await page.waitForFunction(()=>card._started&&!card._loading);
-  if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
+  if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];if(card._config.source==='news')fixture.articleImages=[{id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',name:'Synthetische nieuwsfoto'}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
   if(shot.selectRoom){await page.locator('ouderapp-card >> #conversation').selectOption(shot.selectRoom);await page.waitForFunction(()=>card._data?.items.length>0);}
   await page.waitForTimeout(100);await page.screenshot({path:new URL(shot.name+'.png',artifacts).pathname,fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow: ${shot.name}`);

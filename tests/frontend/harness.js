@@ -34,7 +34,7 @@ const items = [
 ];
 window.fixture = {
   items, calls:[], photoCalls:[], revoked:[], state:params.get('state')||'ready', deferred:[], userId:'synthetic-user', imageStatus:200,
-  pendingTypes:[], articlePending:false, articleError:null,
+  pendingTypes:[], articlePending:false, articleError:null, articleImages:[], photoPending:false, photoDeferred:[],
   conversations:[{id:'101',title:'Contact met het voorbeeldteam',type:'private',sort_date:'2026-09-08T09:30:00+02:00',unread_count:2},{id:'202',title:'Bibliotheekbezoek',type:'group',sort_date:'2026-09-07T13:00:00+02:00',unread_count:0}],
   chatItems:{
     '101':[{id:'1001',contents:'Goedemorgen! Hierbij een kleine indruk van het tuinproject. De groep heeft vandaag de eerste plantjes verzorgd.',sender:'Team voorbeeldopvang',created_at:'2026-09-08T09:30:00+02:00',images:[{id:'dddddddddddddddddddddddddddddddd',name:'Synthetische gespreksfoto'}]},{id:'1002',contents:'Bedankt voor het bericht. Leuk om te zien waar jullie aan werken!',sender:'Voorbeeldouder',created_at:'2026-09-08T09:15:00+02:00',images:[]}],
@@ -63,13 +63,14 @@ window.makeHass = (userId=fixture.userId) => ({
       const selected=fixture.state==='empty'?[]:(fixture.chatItems[request.conversation]||[]).slice(0,request.limit);
       return {items:selected,conversation:fixture.conversations.find(room=>room.id===request.conversation),returned:selected.length,limit:request.limit,updated_at:'2026-09-08T09:35:00+02:00',stale:false};
     }
-    if (request.article) return {detail:true, items:[{article_id:request.article, contents:'Volledige tekst voor '+request.kind+' '+request.article, images:[]}], stale:false};
+    if (request.article) return {detail:true, items:[{article_id:request.article, contents:'Volledige tekst voor '+request.kind+' '+request.article, images:fixture.articleImages}], stale:false};
     const selected=fixture.state==='empty'?[]:fixture.items.filter(item=>!request.group_id || item.group_id===request.group_id).slice(0,request.limit);
     return {items:selected,groups:fixture.groups,returned:selected.length,limit:request.limit,updated_at:'2026-09-08T09:00:00+02:00',stale:fixture.state==='stale'};
   },
   async fetchWithAuth(url, options={}) {
     fixture.photoCalls.push(url);
     if(!/^\/api\/ouderapp\/(example-account|second-account)\/image\/(timeline|messages)\/[A-Za-z0-9_-]{32}$/.test(url)) return new Response(null,{status:400});
+    if(fixture.photoPending) await new Promise(resolve=>fixture.photoDeferred.push(resolve));
     const blob=await imageBlob();
     if(options.signal?.aborted) throw new DOMException('Aborted','AbortError');
     return new Response(blob,{status:fixture.imageStatus,headers:{'Content-Type':'image/png'}});

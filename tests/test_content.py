@@ -297,3 +297,44 @@ async def test_article_cache_stale_then_auth_failure_and_late_invalidation(hass,
         await feed.async_get_content("news", article="42")
     assert not feed._feeds
     await feed.async_close()
+
+
+async def test_news_detail_photos_are_private_bounded_deduplicated_and_invalidated(hass):
+    api = AsyncMock()
+    candidates = [{"mediumUrl": "https://other.invalid/private"}, PHOTO, PHOTO] + [
+        {"mediumUrl": f"https://resource.kidskonnect.cloud/{index}.jpg?secret=token"}
+        for index in range(6)
+    ]
+    row = {"htmlContentId": 42, "generatedHtmlNewsLetterId": 42, "detail_photos": candidates}
+    api.async_get_news.return_value = [row]
+    api.async_get_article.return_value = [{**row, "detail_html": "News body"}]
+    feed, other, chat = (
+        OuderAppContent(hass, api),
+        OuderAppContent(hass, api),
+        OuderAppContent(hass, api, messages=True),
+    )
+    try:
+        assert (await feed.async_get_content("news"))["items"][0]["images"] == []
+        first = await feed.async_get_content("news", article="42")
+        second = await other.async_get_content("news", article="42")
+        images = first["items"][0]["images"]
+        assert len(images) == len({image["id"] for image in images}) == 3
+        assert images != second["items"][0]["images"]
+        assert "https://" not in str(first) and "token" not in str(first)
+        assert (await feed.async_get_content("newsletters", article="42"))["items"][0][
+            "images"
+        ] == []
+        for image in images:
+            with pytest.raises(OuderAppMediaError):
+                await other.async_get_image(image["id"])
+            with pytest.raises(OuderAppMediaError):
+                await chat.async_get_image(image["id"])
+        feed.invalidate()
+        assert not feed._refs and not feed._images
+        for image in images:
+            with pytest.raises(OuderAppError):
+                await feed.async_get_image(image["id"])
+    finally:
+        await feed.async_close()
+        await other.async_close()
+        await chat.async_close()

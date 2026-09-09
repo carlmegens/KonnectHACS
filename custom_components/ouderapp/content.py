@@ -324,9 +324,13 @@ class OuderAppContent:
                 article_id = conversation_id(row.get(field))
                 if detail:
                     text = row.get("detail_html")
+                    if kind == "news":
+                        photos = row.get("detail_photos")
             images = []
             if isinstance(photos, list):
-                for photo in photos[:3]:
+                for photo in photos[: 20 if detail and kind == "news" else 3]:
+                    if len(images) >= 3:
+                        break
                     if not isinstance(photo, dict) or photo.get("mediaType") == "video":
                         continue
                     for key in ("mediumUrl", "thumbUrl", "fullSizeUrl"):
@@ -334,7 +338,9 @@ class OuderAppContent:
                             url = _validated_url(photo.get(key))
                         except OuderAppMediaError:
                             continue
-                        images.append({"id": self._media_id(url), "name": "Foto"})
+                        media_id = self._media_id(url)
+                        if not any(image["id"] == media_id for image in images):
+                            images.append({"id": media_id, "name": "Foto"})
                         break
             contents = _safe_text(text, 200000 if detail else 20000)
             truncated = detail and (

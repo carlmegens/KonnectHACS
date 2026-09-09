@@ -585,3 +585,80 @@ async def test_empty_official_news_envelope_is_valid(session):
         )
     ) as client:
         assert await OuderAppApi(client, "example", session).async_get_news() == []
+
+
+async def test_news_photos_follow_official_layouts_and_skip_private_or_video_parts(session):
+    photo = {
+        "fullSizeUrl": "https://resource.kidskonnect.cloud/full",
+        "mediumUrl": "https://resource.kidskonnect.cloud/medium",
+        "private": "SECRET",
+    }
+    sections = [
+        {
+            "itemType": "txt_img",
+            "itemParts": [
+                {"content": "Text", "awsResourcePhoto": photo},
+                {"awsResourcePhoto": photo},
+            ],
+        },
+        {
+            "itemType": "imgcap_imgcap",
+            "itemParts": [
+                {"photo": {"photoId": 1, "thumbUrl": "legacy", "fullSizeUrl": "UNPROVEN"}},
+                {"awsResourcePhoto": photo, "containsVideo": True},
+            ],
+        },
+        {
+            "itemType": "img",
+            "itemParts": [
+                {
+                    "photo": {"photoId": 1, "mediumUrl": "PRIVATE-PORTRAIT"},
+                    "isLoggedInAsPhoto": True,
+                }
+            ],
+        },
+        {"itemType": "unknown", "itemParts": [{"awsResourcePhoto": photo}]},
+        {"itemType": {}, "itemParts": [{"awsResourcePhoto": photo}]},
+    ]
+
+    def handle(request):
+        if request.url.path.endswith("/htmlnews/view"):
+            return httpx.Response(
+                200,
+                json={"newsItems": [{"htmlContentId": 42, "detail_photos": ["UNTRUSTED-LIST"]}]},
+            )
+        return httpx.Response(200, json={"items": sections})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = (await OuderAppApi(client, "example", session).async_get_article("news", "42"))[0]
+    assert result["detail_html"] == "Text"
+    assert result["detail_photos"] == [
+        {"fullSizeUrl": photo["fullSizeUrl"], "mediumUrl": photo["mediumUrl"], "thumbUrl": None},
+        {"fullSizeUrl": None, "mediumUrl": None, "thumbUrl": "legacy"},
+    ]
+    assert not any(
+        value in str(result)
+        for value in ["SECRET", "PRIVATE-PORTRAIT", "UNPROVEN", "UNTRUSTED-LIST"]
+    )
+
+
+async def test_news_photo_candidates_are_bounded(session):
+    def handle(request):
+        if request.url.path.endswith("/htmlnews/view"):
+            return httpx.Response(200, json={"newsItems": [{"htmlContentId": 42}]})
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "itemType": "img",
+                        "itemParts": [{"awsResourcePhoto": {"fullSizeUrl": f"photo-{index}"}}],
+                    }
+                    for index in range(100)
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = (await OuderAppApi(client, "example", session).async_get_article("news", "42"))[0]
+    assert len(result["detail_photos"]) == 20

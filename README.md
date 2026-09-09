@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.3.1 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; de nieuwe detailweergave en planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.4.0 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -40,12 +40,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.3.1-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.4.0-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.3.1`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.4.0`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -89,7 +89,7 @@ response_variable: ouderapp_result
 
 `kind` is `timeline`, `news`, `newsletters`, `conversations` of `messages`. Voor `messages` is `conversation` verplicht: de `conversation_id` uit `conversations`. Ook de server controleert voor een nieuwe detaillezing of dit gesprek in het begrensde overzicht van hetzelfde account voorkomt. Het antwoord bevat `items`, `returned`, `limit`, `updated_at`, `kind` en `stale`; foto's hebben afgeschermde identifiers, geen downloadadressen.
 
-Voor één nieuwsitem of nieuwsbrief geef je daarnaast `article` mee: gebruik daarvoor de `article_id` uit hetzelfde account en dezelfde bron (`news` of `newsletters`). Het antwoord heeft `detail: true` en één item met gewone tekst; `truncated` geeft aan of de tekst is ingekort.
+Voor één nieuwsitem of nieuwsbrief geef je daarnaast `article` mee: gebruik daarvoor de `article_id` uit hetzelfde account en dezelfde bron (`news` of `newsletters`). Het antwoord heeft `detail: true` en één item met gewone tekst; `truncated` geeft aan of de tekst is ingekort. Nieuwsdetails kunnen daarnaast maximaal drie foto’s bevatten. Die verschijnen bij uitklappen en worden via de beveiligde HA-fotoroute geladen; de optie **Foto’s tonen** geldt ook hier. Alleen expliciete foto-elementen uit de ondersteunde nieuwsindelingen worden gebruikt.
 
 ## Opvangplanning lezen
 
@@ -141,7 +141,7 @@ Een lege of afgekorte selectie en een offlinewaarschuwing leveren bij ICS een du
 
 - Inhoudsoverzichten: maximaal 20 items per aanvraag, eerste pagina; geen volledig archief. De aparte planningactie leest maximaal 31 dagen/100 opvangmomenten. Een kalenderabonnements-URL zoals bij Parro is niet aangetoond; een ICS-momentopname is beschikbaar, een kalenderweergave volgt afzonderlijk.
 - Alleen de geobserveerde tijdlijnsoorten dagboek en foto worden weergegeven. Actie- en toestemmingskaarten worden overgeslagen.
-- Nieuws en nieuwsbrieven tonen eerst een samenvatting; uitklappen leest de beschikbare tekst. Volledige HTML-opmaak, documenten, enquêtes, video's en ingebedde afbeeldingen worden niet weergegeven.
+- Nieuws en nieuwsbrieven tonen eerst een samenvatting; uitklappen leest de beschikbare tekst. Nieuwsdetails tonen maximaal drie ondersteunde foto-elementen. Volledige HTML-opmaak, documenten, enquêtes, video's, afbeeldingen uit vrije HTML en nieuwsbriefafbeeldingen worden niet weergegeven.
 - Maximaal drie foto's per item en twaalf zichtbaar per kaart. Alleen ontvangen HTTPS-foto-URL's op `resource.kidskonnect.cloud` worden ondersteund. Andere mediahosts blijven dicht totdat hun echte gebruik is geverifieerd.
 - Foto's worden begrensd gedownload, gecontroleerd en omgezet naar JPEG zonder oorspronkelijke metadata. Een verlopen of afwijkende foto verschijnt als niet beschikbaar.
 - Inhoud is vijf minuten vers in de cache; bij een tijdelijke netwerkfout kan maximaal één uur oude inhoud met een melding terugkomen. Een authenticatiefout wist de inhoudscaches. Na verbindingsfouten wachten volgende aanvragen oplopend 30 seconden tot vijf minuten voordat ze opnieuw de leverancier benaderen.

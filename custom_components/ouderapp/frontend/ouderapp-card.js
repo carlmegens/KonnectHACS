@@ -1,4 +1,4 @@
-/* OuderApp card 0.3.1 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.4.0 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -422,7 +422,8 @@ class OuderAppCard extends HTMLElement {
             const retry = button(t.retry, () => { this._articles.delete(key); this._loadArticle(item, key); }, 'text-button'); retry.id = `retry-${index}`; retry.textContent = t.retry; article.append(retry);
           }
         }
-        const images = this._config.show_images && Array.isArray(item.images) ? item.images.slice(0, Math.min(3, photosLeft)) : [];
+        const photoItems = detail?.value ? detail.value.images : item.images;
+        const images = this._config.show_images && Array.isArray(photoItems) ? photoItems.slice(0, Math.min(3, photosLeft)) : [];
         if (images.length) {
           const grid = el('div', 'photos');
           for (const photo of images) {
@@ -457,6 +458,10 @@ class OuderAppCard extends HTMLElement {
     this._photoObserver?.disconnect();
     if (!this._eligible()) return;
     const nodes = [...this.shadowRoot.querySelectorAll('.photo')];
+    const visibleIds = new Set(nodes.map((node) => node.dataset.imageId));
+    for (const [id, url] of this._urls) if (!visibleIds.has(id)) {
+      URL.revokeObjectURL(url); this._urls.delete(id);
+    }
     if ('IntersectionObserver' in window) {
       this._photoObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) if (entry.isIntersecting) {
@@ -488,6 +493,7 @@ class OuderAppCard extends HTMLElement {
       if (!response.ok) throw new Error('image_unavailable');
       const blob = await response.blob();
       if (epoch !== this._epoch || mediaEpoch !== this._mediaEpoch || !this._eligible()) return;
+      if (![...this.shadowRoot.querySelectorAll('.photo')].some((current) => current.dataset.imageId === id)) return;
       if (!/^image\/(jpeg|png|webp|gif|avif)$/i.test(blob.type) || !blob.size || blob.size > MAX_IMAGE_BYTES) throw new Error('image_unavailable');
       const url = URL.createObjectURL(blob);
       const old = this._urls.get(id); if (old) URL.revokeObjectURL(old);
