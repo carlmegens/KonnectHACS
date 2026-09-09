@@ -11,9 +11,14 @@ from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from icalendar import Calendar
 
-from custom_components.ouderapp.api import OuderAppApi, OuderAppAuthError, OuderAppError
+from custom_components.ouderapp.api import (
+    OuderAppApi,
+    OuderAppAuthError,
+    OuderAppError,
+    OuderAppResponseError,
+)
 from custom_components.ouderapp.calendar_export import CalendarExportError, export_calendar
-from custom_components.ouderapp.planning import period_for, project_planning
+from custom_components.ouderapp.planning import child_identifier, period_for, project_planning
 
 
 def millis(value):
@@ -199,6 +204,46 @@ def test_bad_planning_shape_not_silently_empty(data):
         project_planning(data, "a", period_for("2026-10-25", "2026-10-26"))
 
 
+def test_child_identifiers_are_opaque_and_never_exposed():
+    period = period_for("2026-10-25", "2026-10-26")
+    data = payload()
+    group = data["days"][0]["children"][0]
+    identifiers = []
+    for identity in [7, "7", "kid_abc-def", "e7f0a431-7ba2-4e70-aa6e-b560ea5d3390"]:
+        group["child"]["id"] = identity
+        result = project_planning(data, "a", period)
+        assert len(result["events"]) == 1
+        assert len(result["events"][0]["id"]) == 64
+        identifiers.append(result["events"][0]["id"])
+        if isinstance(identity, str) and len(identity) > 1:
+            assert identity not in str(result)
+    assert identifiers[0] == identifiers[1]
+    assert len(set(identifiers)) == 3
+    for identity in [None, True, {}, "", "../private", "a\nPRIVATE", "a" * 129]:
+        group["child"]["id"] = identity
+        with pytest.raises(OuderAppError, match="child"):
+            project_planning(data, "a", period)
+
+
+@pytest.mark.parametrize("value", [0, -1, 10**40, 1.5, False, "é", "a b", "a/b", "a\x00b"])
+def test_child_identifier_rejects_unsupported_values(value):
+    assert child_identifier(value) is None
+
+
+def test_opaque_child_identity_keeps_account_separation_and_calendar_uid():
+    data = payload()
+    data["days"][0]["children"][0]["child"]["id"] = "opaque_child-id"
+    period = period_for("2026-10-25", "2026-10-26")
+    first = project_planning(data, "account-a", period)
+    repeated = project_planning(data, "account-a", period)
+    other = project_planning(data, "account-b", period)
+    assert first["events"][0]["id"] == repeated["events"][0]["id"]
+    assert first["events"][0]["id"] != other["events"][0]["id"]
+    calendar = export_calendar(first)
+    assert "opaque_child-id" not in calendar
+    assert len(Calendar.from_ical(calendar).walk("VEVENT")) == 1
+
+
 def test_empty_and_conflicting_slots():
     period = period_for("2026-10-25", "2026-10-26")
     assert project_planning({"days": []}, "a", period)["events"] == []
@@ -291,6 +336,38 @@ async def test_planning_auth_error_revokes_content_and_hides_provider_error(
         await call_planning(hass, planning_account, Context())
     assert planning_account.runtime_data.content_auth_failed
     assert "PRIVATE-TOKEN" not in str(error.value) + caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure,diagnostic",
+    [
+        (OuderAppError("Unsupported planning time"), "planning.time"),
+        (OuderAppError("PRIVATE-TOKEN"), "planning.source"),
+        (RuntimeError("PRIVATE-TOKEN"), "planning.internal"),
+    ],
+)
+async def test_planning_failure_reports_only_finite_diagnostic(
+    hass, planning_account, mock_api, failure, diagnostic
+):
+    mock_api.async_get_planning.side_effect = failure
+    with pytest.raises(HomeAssistantError) as error:
+        await call_planning(hass, planning_account, Context())
+    assert diagnostic in str(error.value)
+    assert "PRIVATE-TOKEN" not in str(error.value)
+
+
+async def test_planning_response_diagnostic_revalidates_mutable_fields(
+    hass, planning_account, mock_api, caplog
+):
+    failure = OuderAppResponseError("invalid_json", "content")
+    mock_api.async_get_planning.side_effect = failure
+    with pytest.raises(HomeAssistantError, match="content.invalid_json"):
+        await call_planning(hass, planning_account, Context())
+    failure.reason = "PRIVATE-TOKEN"
+    failure.stage = "PRIVATE-ACCOUNT"
+    with pytest.raises(HomeAssistantError, match="unknown.unknown") as error:
+        await call_planning(hass, planning_account, Context())
+    assert "PRIVATE" not in str(error.value) + caplog.text
 
 
 def test_calendar_parser_roundtrip_unicode_escaping_and_no_injected_components():

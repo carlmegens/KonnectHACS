@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, cal
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.service import async_register_admin_service
 
-from .api import OuderAppAuthError, OuderAppError
+from .api import OuderAppAuthError, OuderAppError, OuderAppResponseError
 from .calendar_export import CalendarExportError, export_calendar
 from .const import DOMAIN
 from .dashboard import CONTENT_SCHEMA, DashboardError, read_content, source_for
@@ -77,8 +77,33 @@ def async_register_services(hass: HomeAssistant) -> None:
             coordinator.invalidate_auth()
             entry.async_start_reauth(hass)
             raise HomeAssistantError("OuderApp requires sign-in") from None
+        except OuderAppResponseError as err:
+            # Validate again at the public boundary; exception fields are mutable.
+            diagnostic = OuderAppResponseError(
+                err.reason if isinstance(err.reason, str) else "unknown",
+                err.stage if isinstance(err.stage, str) else "unknown",
+                err.status,
+            ).code
+            raise HomeAssistantError(f"OuderApp planning is unavailable ({diagnostic})") from None
+        except OuderAppError as err:
+            # Only identifiers for our own finite validation failures, never
+            # provider payloads, URLs, account details or arbitrary exceptions.
+            code = {
+                "Unsupported planning shape": "shape",
+                "Unsupported planning time": "time",
+                "Unsupported planning child": "child",
+                "Unsupported planning interval": "interval",
+                "Conflicting planning slots": "conflict",
+                "Planning response exceeds limit": "limit",
+                "Unexpected planning warnings": "warnings",
+            }.get(str(err), "source")
+            raise HomeAssistantError(
+                f"OuderApp planning is unavailable (planning.{code})"
+            ) from None
         except Exception:
-            raise HomeAssistantError("OuderApp planning is unavailable") from None
+            raise HomeAssistantError(
+                "OuderApp planning is unavailable (planning.internal)"
+            ) from None
         if (
             hass.config_entries.async_get_entry(entry_id) is not entry
             or entry.state is not ConfigEntryState.LOADED

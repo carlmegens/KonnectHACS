@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.6 — planning met tekstidentificaties herstellen
+
+De planning accepteert nu begrensde tekstidentificaties voor kinderen, naast positieve numerieke identifiers. Voorheen werd de validator voor gespreksnummers hergebruikt; daardoor kon een geldig planningantwoord falen met `planning.child`. De fix is vóór deze release gericht in Home Assistant toegepast en het ophalen van JSON-planning is daar bevestigd.
+
+Bestaande numerieke gebeurtenisidentiteit blijft behouden. Kindidentificaties worden alleen lokaal gehasht, blijven accountgebonden en komen niet in het antwoord of provideradressen terecht. Planningsfouten geven uitsluitend begrensde diagnosecodes; ruwe exceptiongegevens blijven verborgen. De integratie presenteert de slots als Opvang, zonder BSO-classificatie uit tijden of aanwezigheidsstatus af te leiden.
+
 ## 0.5.5 — dubbele tijdlijnfoto’s weglaten
 
 Losse foto’s die al bij een dagboekbericht in de opgehaalde selectie staan, worden op bron-ID ontdubbeld. Een volledig dubbele fotokaart verdwijnt; overige foto’s blijven staan. Dit volgt de filtering in de officiële app, begrensd tot foto’s die de integratie ondersteunt en de eerste drie foto-posities per dagboek.

@@ -10,7 +10,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .api import OuderAppError
-from .content import _safe_text, conversation_id
+from .content import _safe_text
 
 TIME_ZONE = ZoneInfo("Europe/Amsterdam")
 MAX_DAYS = 31
@@ -76,6 +76,16 @@ def _timestamp(value: Any) -> datetime:
     return result
 
 
+def child_identifier(value: Any) -> str | None:
+    # Child identifiers are opaque identities, not numeric conversation IDs.
+    # They are only hashed locally, never interpolated into a provider route.
+    if type(value) is int:
+        return str(value) if 0 < value < 10**40 else None
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+        return value
+    return None
+
+
 def project_planning(
     payload: dict[str, Any], account_id: str, period: Period, limit: int = 50
 ) -> dict[str, Any]:
@@ -90,7 +100,7 @@ def project_planning(
             child = group.get("child")
             if (
                 not isinstance(child, dict)
-                or (child_id := conversation_id(child.get("id"))) is None
+                or (child_id := child_identifier(child.get("id"))) is None
             ):
                 raise OuderAppError("Unsupported planning child")
             for combined in _rows(group.get("combinedPlanningParts", []), 100):

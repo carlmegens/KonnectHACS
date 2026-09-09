@@ -1,4 +1,4 @@
-/* OuderApp card 0.5.5 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.5.6 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -61,7 +61,7 @@ const words = (hass) => STRINGS[locale(hass).toLowerCase().startsWith('nl') ? 'n
 const errorCode = (error) => ['unauthorized', 'not_loaded', 'cannot_connect', 'authentication_expired', 'unsupported_response'].includes(error?.code) ? error.code : 'unsupported_response';
 const CONTENT_DIAGNOSTICS = new Set(['content.invalid_json', 'content.response_shape', 'content.provider_rejected', 'content.http_status', 'content.too_large', 'content.unsupported', 'content.internal_error', 'frontend.response_shape']);
 const diagnosticCode = error => errorCode(error) === 'unsupported_response' ? (CONTENT_DIAGNOSTICS.has(error?.message) ? error.message : 'frontend.unknown') : null;
-const diagnosticLabel = (hass, code) => `${words(hass).diagnostic}: ${code} · 0.5.5`;
+const diagnosticLabel = (hass, code) => `${words(hass).diagnostic}: ${code} · 0.5.6`;
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
