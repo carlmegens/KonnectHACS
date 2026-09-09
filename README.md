@@ -172,3 +172,9 @@ python3.14 -m venv .venv
 ```
 
 De browsertests in `tests/frontend` gebruiken Playwright en uitsluitend verzonnen gegevens. De productiekaart heeft geen Node-afhankelijkheid. `scripts/prepare_repository.py` maakt reproduceerbare installatie- en repositoryarchieven met SHA-256-inventaris; het publiceert niets. Testbestanden en interne voortgangsverslagen worden niet in het installatiepakket opgenomen.
+
+## Ontwikkelen en controleren
+
+GitHub voert bij een push naar `main` en bij pull requests de Home Assistant-tests, codecontrole, pakketopbouw en synthetische Chromium-proeven uit. De workflow gebruikt alleen leesrechten en geen ouderaccount of productie-HA. De integratieversie blijft 0.5.0; deze wijziging betreft de ontwikkelcontroles.
+
+Lokaal: gebruik Python 3.14 met `requirements-test.txt`, voer `python -m pytest --tb=short` uit en bouw pakketten met `python scripts/prepare_repository.py`. De browserproeven staan beschreven in `tests/frontend/README.md`. Action-commits en de npm-lockfile zijn vastgelegd; de Python-testplugin legt onder meer de geteste HA-versie vast. Transitive Python-afhankelijkheden met een versie-interval zijn niet volledig vergrendeld.

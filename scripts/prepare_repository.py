@@ -37,6 +37,7 @@ MODULES = (
 PUBLIC_DOCS = ("README.md", "LICENSE", "CHANGELOG.md", "hacs.json")
 
 DEVELOPMENT_FILES = (
+    ".github/workflows/checks.yml",
     "requirements-test.txt",
     "pyproject.toml",
     ".gitignore",
@@ -55,6 +56,7 @@ DEVELOPMENT_FILES = (
     "tests/frontend/harness.js",
     "tests/frontend/index.html",
     "tests/frontend/package.json",
+    "tests/frontend/package-lock.json",
     "tests/frontend/serve.mjs",
     "tests/frontend/test-card.mjs",
 )

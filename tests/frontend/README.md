@@ -5,8 +5,8 @@ This harness imports the actual bundled `ouderapp-card.js`. The small mock Home 
 From this directory, install the browser test dependency and Chromium once:
 
 ```sh
-npm install
-npx playwright install chromium
+npm ci
+npx --no-install playwright install chromium
 ```
 
 Start `npm run preview`, then run `npm test` in a second terminal. The preview is available at `http://127.0.0.1:8776/tests/frontend/index.html`. The production card itself has no Node or framework dependency. The preview server binds only localhost and serves exactly the preview HTML, its harness module and the bundled card JavaScript; repository files, reports and screenshots are unavailable over HTTP.
