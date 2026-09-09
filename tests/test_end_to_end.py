@@ -101,6 +101,16 @@ async def test_real_flow_transport_refresh_and_unload(hass, hass_ws_client):
             reload.assert_not_called()
         assert items[0]["contents"] == "SYNTHETIC-PRIVATE-TIMELINE"
         assert entry.data["session"]["refresh_token"] == "r2"
+        # Exercise the popup's overview request through the real API and WebSocket.
+        # A working notification counter alone does not establish this contract.
+        await client.send_json_auto_id(
+            {"type": "ouderapp/content", "kind": "news", "config_entry_id": entry.entry_id}
+        )
+        overview = await client.receive_json()
+        assert overview["success"]
+        assert len(overview["result"]["items"]) == 1
+        assert overview["result"]["items"][0]["title"] == "News"
+        assert overview["result"]["items"][0]["contents"] == "Preview"
         await client.send_json_auto_id(
             {
                 "type": "ouderapp/content",

@@ -350,6 +350,7 @@ def test_calendar_identity_and_status_do_not_invent_confirmation_or_cancellation
     period = period_for("2026-10-25", "2026-10-26")
     uids = []
     for status, label in (
+        ("attend", "Gepland"),
         ("absent", "Afwezig"),
         ("tentative", "Voorlopig"),
         ("new", "Status onbekend"),
@@ -428,3 +429,17 @@ async def test_planning_native_websocket_service_response_contract(
         assert len(Calendar.from_ical(response["calendar"]).walk("VEVENT")) == 1
     else:
         mock_api.async_get_planning.assert_not_awaited()
+
+
+@pytest.mark.parametrize("confirmation", [True, False, None])
+def test_attend_is_planned_and_confirmation_remains_independent(confirmation):
+    part = slot(status="attend")
+    part["toConfirmProduct"] = confirmation
+    planning = project_planning(payload([part]), "a", period_for("2026-10-25", "2026-10-26"))
+    event = planning["events"][0]
+    assert event["status"] == "attend"
+    assert event["confirmation_required"] is confirmation
+    (exported,) = Calendar.from_ical(export_calendar(planning)).walk("VEVENT")
+    assert "Gepland" in str(exported["SUMMARY"])
+    assert "STATUS" not in exported
+    assert ("Bevestiging vereist" in str(exported["DESCRIPTION"])) is (confirmation is True)

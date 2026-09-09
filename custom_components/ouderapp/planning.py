@@ -79,7 +79,7 @@ def _timestamp(value: Any) -> datetime:
 def project_planning(
     payload: dict[str, Any], account_id: str, period: Period, limit: int = 50
 ) -> dict[str, Any]:
-    """Times are milliseconds; retain absent/tentative and never infer confirmation."""
+    """Times are milliseconds; retain attend/absent/tentative and never infer confirmation."""
     limit_value(limit)
     if not isinstance(payload, dict):
         raise OuderAppError("Unsupported planning shape")
@@ -105,7 +105,7 @@ def project_planning(
                         continue
                     code = slot.get("plannedAttendanceCode")
                     code = code.get("code") if isinstance(code, dict) else None
-                    status = code if code in ("absent", "tentative") else "unknown"
+                    status = code if code in ("attend", "absent", "tentative") else "unknown"
                     # No stable provider slot ID has been proven. Same unchanged slot
                     # keeps its ID across reordering/refreshes; rescheduling changes it.
                     identity = hashlib.sha256(

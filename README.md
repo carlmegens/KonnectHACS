@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.5.0 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.5.1 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -22,6 +22,12 @@ Vereist: Home Assistant Core **2026.8.3 of hoger**, HACS en je OuderApp-account.
 
 De integratie en de bijbehorende kaart/pop-ups worden samen geïnstalleerd. Een apart dashboard is niet nodig. Deze aangepaste HACS-repository gebruikt de bestanden op `main`; opname in de standaardcatalogus is niet aangevraagd. Zie ook de [HACS-instructies voor aangepaste repositories](https://www.hacs.xyz/docs/faq/custom_repositories/).
 
+## De nieuwsteller werkt, maar berichten laden niet
+
+Versies vóór 0.2.2 verwerkten het nieuwsoverzicht verkeerd. Daardoor kon de teller wel werken terwijl de pop-up **Berichten konden niet worden geladen** toonde. De huidige versie bevat de correctie.
+
+Download de nieuwste versie van deze repository in HACS, herstart Home Assistant en herlaad vervolgens de browser of sluit en heropen de HA-app. Open daarna **Ongelezen nieuwsitems** opnieuw. Blijft de fout bestaan, vermeld dan de geïnstalleerde integratieversie; deel geen wachtwoord of accountgegevens. Dezelfde algemene melding kan ook een andere oorzaak hebben.
+
 ## Wat is gebouwd?
 
 - Aanmelden vanuit Home Assistant, sessievernieuwing, heraanmelden en meerdere accounts.
@@ -40,12 +46,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.5.0-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.5.1-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.0`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.1`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -93,7 +99,7 @@ Voor één nieuwsitem of nieuwsbrief geef je daarnaast `article` mee: gebruik da
 
 ## Planning bekijken en downloaden
 
-Open **OuderApp** via het apparaat en kies als Home Assistant-beheerder de tab **Opvangplanning**. Kies een begin- en einddatum en druk op **Planning ophalen**. De einddatum telt niet mee; maximaal 31 dagen en 100 opvangmomenten. De lijst gebruikt Nederlandse datums en tijden en vermeldt **Voorlopig**, **Afwezig** of **Status onbekend**, met de eventuele noodzaak om in OuderApp te bevestigen.
+Open **OuderApp** via het apparaat en kies als Home Assistant-beheerder de tab **Opvangplanning**. Kies een begin- en einddatum en druk op **Planning ophalen**. De einddatum telt niet mee; maximaal 31 dagen en 100 opvangmomenten. De lijst gebruikt Nederlandse datums en tijden en vermeldt **Gepland**, **Voorlopig**, **Afwezig** of **Status onbekend**, met de eventuele noodzaak om in OuderApp te bevestigen.
 
 Met **Kalender downloaden** haal je een verse momentopname als `.ics`-bestand op. De knop is niet beschikbaar bij lege, afgekorte of offline planning. Gebruik voor import een aparte vervangbare kalender: latere wijzigingen worden niet automatisch verwerkt. Dit is geen kalenderabonnement en wijzigt geen opvangboekingen. Wisselen van account, periode of tab wist de eerdere planning; verborgen of gesloten weergaven bewaren geen late antwoorden. Er wordt alleen na een klik opgehaald, zonder automatisch verversen.
 
@@ -116,7 +122,7 @@ response_variable: opvangplanning
 Dit voorbeeld leest de periode van 9 september tot aan 16 september. Het antwoord bevat `events`, `returned`, `limit`, `truncated`, de datums en `time_zone`. De selectie bestaat uit opvangmomenten die de periode overlappen. Elk moment heeft `id`, `child`, `start`, `end`, `status` en `confirmation_required`. De begin- en eindtijd hebben een tijdzone-offset; een gebeurtenis die de periodegrens kruist wordt niet afgeknipt.
 
 - Maximaal 100 momenten, standaard 50, chronologisch gesorteerd. `truncated: true` betekent dat meer momenten buiten de antwoordlimiet vallen.
-- `status` is `absent`, `tentative` of `unknown`. Een onbekende providerstatus wordt nadrukkelijk niet als bevestigde opvang geïnterpreteerd. `confirmation_required` is waar/onwaar als de bron dit geeft, anders onbekend (`null`).
+- `status` is `attend` (Gepland), `absent`, `tentative` of `unknown`. Gepland betekent geplande opvang, niet aangetoonde fysieke aanwezigheid of afgehandelde bevestiging. Een onbekende providerstatus wordt nadrukkelijk niet als bevestigde opvang geïnterpreteerd. `confirmation_required` is waar/onwaar als de bron dit geeft, anders onbekend (`null`).
 - `data_connector_offline: true` betekent dat de leverancier waarschuwt voor mogelijk onjuiste of verouderde planning. Gebruik die gegevens niet als definitieve bevestiging.
 - Identifiers blijven gelijk voor hetzelfde ongewijzigde tijdslot van hetzelfde kind/account. Een verschoven begin- of eindtijd krijgt een andere identifier; er is nog geen stabiele provider-ID voor verplaatsingen aangetoond.
 - Deze actie doet per aanvraag een begrensde nieuwe lezing; geen terugval op een oude planningcache. Plan aanvragen met een redelijk interval, bijvoorbeeld hetzelfde halfuur als de tellers.
@@ -141,7 +147,7 @@ Het antwoord bevat extra `calendar` (de ICS-tekst), `filename` en `content_type`
 
 De export is een **momentopname**, zonder automatische synchronisatie. Importeer deze in een aparte kalender die je bij een volgende import vervangt: verplaatste of verwijderde opvangmomenten worden niet automatisch uit eerdere imports verwijderd, en kalenderapps kunnen bij herhaalde import duplicaten maken. Identifiers zijn stabiel voor ongewijzigde tijdsloten, ook als alleen de status verandert.
 
-Titels vermelden altijd **Voorlopig**, **Afwezig** of **Status onbekend**, plus de beschikbare kindnaam. De momenten blokkeren geen beschikbaarheid in je agenda. De omschrijving vermeldt wanneer volgens de bron bevestiging nodig is. Tijden worden als UTC opgeslagen zodat kalenderapps de juiste lokale tijd kunnen tonen, ook bij zomer-/wintertijd. De export gebruikt [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545.html).
+Titels vermelden altijd **Gepland**, **Voorlopig**, **Afwezig** of **Status onbekend**, plus de beschikbare kindnaam. De momenten blokkeren geen beschikbaarheid in je agenda. De omschrijving vermeldt wanneer volgens de bron bevestiging nodig is. Tijden worden als UTC opgeslagen zodat kalenderapps de juiste lokale tijd kunnen tonen, ook bij zomer-/wintertijd. De export gebruikt [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545.html).
 
 Een lege of afgekorte selectie en een offlinewaarschuwing leveren bij ICS een duidelijke fout op; JSON blijft die toestand wel teruggeven. Kies bij afkappen een kortere periode of een hogere limiet (maximaal 100). Bewaar of deel het bestand bewust: het bevat kindnamen en planning, en de HA-toegangscontrole geldt niet meer voor een eenmaal gekopieerd bestand.
 
@@ -175,6 +181,6 @@ De browsertests in `tests/frontend` gebruiken Playwright en uitsluitend verzonne
 
 ## Ontwikkelen en controleren
 
-GitHub voert bij een push naar `main` en bij pull requests de Home Assistant-tests, codecontrole, pakketopbouw en synthetische Chromium-proeven uit. De workflow gebruikt alleen leesrechten en geen ouderaccount of productie-HA. De integratieversie blijft 0.5.0; deze wijziging betreft de ontwikkelcontroles.
+GitHub voert bij een push naar `main` en bij pull requests de Home Assistant-tests, codecontrole, pakketopbouw en synthetische Chromium-proeven uit. De workflow gebruikt alleen leesrechten en geen ouderaccount of productie-HA. De controles gebruiken uitsluitend synthetische gegevens.
 
 Lokaal: gebruik Python 3.14 met `requirements-test.txt`, voer `python -m pytest --tb=short` uit en bouw pakketten met `python scripts/prepare_repository.py`. De browserproeven staan beschreven in `tests/frontend/README.md`. Action-commits en de npm-lockfile zijn vastgelegd; de Python-testplugin legt onder meer de geteste HA-versie vast. Transitive Python-afhankelijkheden met een versie-interval zijn niet volledig vergrendeld.

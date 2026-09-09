@@ -1,4 +1,4 @@
-/* OuderApp card 0.5.0 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.5.1 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -651,7 +651,7 @@ const planningWords = (hass) => locale(hass).startsWith('nl') ? {
   initial:'Kies een periode en haal de planning op.', loading:'Planning ophalen…', empty:'Geen opvangmomenten in deze periode.',
   invalid:'Kies geldige datums met een einddatum 1 tot 31 dagen na de begindatum.', error:'Planning kon niet worden opgehaald. Probeer opnieuw of controleer de OuderApp-integratie.',
   offline:'De planningskoppeling is offline. Deze gegevens kunnen verouderd zijn; controleer OuderApp.', truncated:'Er zijn meer dan 100 momenten. Kies een kortere periode om alles te zien.',
-  tentative:'Voorlopig', absent:'Afwezig', unknown:'Status onbekend', confirm:'Bevestiging vereist',
+  attend:'Gepland', tentative:'Voorlopig', absent:'Afwezig', unknown:'Status onbekend', confirm:'Bevestiging vereist',
   snapshot:'Een download is een momentopname. Gebruik een aparte kalender die je bij een volgende import vervangt; wijzigingen worden niet automatisch bijgewerkt.',
 } : {
   title:'Childcare planning', start:'From', end:'Until (this day excluded)', load:'Load planning', download:'Download calendar',
@@ -659,7 +659,7 @@ const planningWords = (hass) => locale(hass).startsWith('nl') ? {
   initial:'Choose a period and load the planning.', loading:'Loading planning…', empty:'No childcare slots in this period.',
   invalid:'Choose valid dates with an end date 1 to 31 days after the start.', error:'Could not load planning. Try again or check the OuderApp integration.',
   offline:'The planning connection is offline. These details may be outdated; check OuderApp.', truncated:'There are more than 100 slots. Choose a shorter period to see them all.',
-  tentative:'Tentative', absent:'Absent', unknown:'Unknown status', confirm:'Confirmation required',
+  attend:'Planned', tentative:'Tentative', absent:'Absent', unknown:'Unknown status', confirm:'Confirmation required',
   snapshot:'A download is a snapshot. Use a separate calendar that you replace with each import; changes are not synchronized automatically.',
 };
 class OuderAppPlanning extends HTMLElement {
@@ -736,7 +736,7 @@ class OuderAppPlanning extends HTMLElement {
         if(dateKey!==day){day=dateKey;card.append(el('h3','',new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',dateStyle:'full'}).format(start)));}
         const row=el('div','slot');const times=new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',timeStyle:'short'});
         const endDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam'}).format(end);
-        row.append(el('strong','',safeText(event.child,100)||'Opvang'),el('p','',`${times.format(start)} – ${endDay!==day?new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',dateStyle:'short'}).format(end)+' ':''}${times.format(end)}`),el('p','',t[['tentative','absent'].includes(event.status)?event.status:'unknown']));
+        row.append(el('strong','',safeText(event.child,100)||'Opvang'),el('p','',`${times.format(start)} – ${endDay!==day?new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',dateStyle:'short'}).format(end)+' ':''}${times.format(end)}`),el('p','',t[['attend','tentative','absent'].includes(event.status)?event.status:'unknown']));
         if(event.confirmation_required===true)row.append(el('p','',t.confirm));card.append(row);
       }
     }

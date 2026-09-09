@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.5.1 — geplande opvang herkennen
+
+De officiële planningstatus `attend` wordt nu behouden en als **Gepland** getoond in het paneel en de kalenderexport. Deze code en de Nederlandse vertaling zijn bevestigd in de openbare officiële app. Eerdere versies toonden hiervoor Status onbekend.
+
+Gepland is geen bewijs van fysieke aanwezigheid of afgehandelde bevestiging. `confirmation_required` blijft onafhankelijk zichtbaar; de export verzint geen CONFIRMED-status. Ongewijzigde tijdsloten behouden dezelfde identifier bij statuswissels. Nieuwe of onbekende codes blijven Status onbekend.
+
+De installatiehulp beschrijft nu ook de situatie waarin de nieuwsteller werkt maar de berichten niet laden. De bestaande correctie uit 0.2.2 is extra gecontroleerd via de volledige route van het officiële nieuwsantwoord naar het Home Assistant-nieuwsoverzicht.
+
 ## 0.5.0 — planning in het OuderApp-paneel
 
 Nieuwe beheerdertab **Opvangplanning** met datumkeuze, een lijst per dag, expliciet ophalen en ICS-download. De tab gebruikt de bestaande native Home Assistant-beheerderactie. Standaard wordt een week gekozen; datumgrenzen, Nederlandse tijdzone, opvangstatussen en bronwaarschuwingen blijven behouden.

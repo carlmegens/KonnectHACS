@@ -56,7 +56,12 @@ def export_calendar(planning: dict) -> str:
         "CALSCALE:GREGORIAN",
     ]
     stamp = _utc(planning["updated_at"])
-    labels = {"absent": "Afwezig", "tentative": "Voorlopig", "unknown": "Status onbekend"}
+    labels = {
+        "attend": "Gepland",
+        "absent": "Afwezig",
+        "tentative": "Voorlopig",
+        "unknown": "Status onbekend",
+    }
     for event in planning["events"]:
         label = labels[event["status"]]
         summary = f"Opvang — {label}"
@@ -83,8 +88,8 @@ def export_calendar(planning: dict) -> str:
                 f"X-OUDERAPP-STATUS:{event['status']}",
             ]
         )
-        # Absence does not prove provider cancellation; unknown does not prove
-        # confirmation. Preserve both in visible text instead of inventing STATUS.
+        # Planned attendance is not confirmation; absence does not prove cancellation.
+        # Preserve other provider states as text without inventing ICS STATUS.
         if event["status"] == "tentative":
             lines.append("STATUS:TENTATIVE")
         lines.append("END:VEVENT")

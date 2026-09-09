@@ -275,6 +275,13 @@ try {
   assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.type==='call_service').at(-1).service_data.format),'ics');
   await page.waitForFunction(()=>!planning._url);assert.ok(await page.evaluate(()=>fixture.revoked.length>0));
  });
+ await test('planned attendance has a clear label without hiding required confirmation',async()=>{
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();
+  await page.evaluate(()=>{window.planning=surface._planning;fixture.planningStatus='attend';});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._data);
+  const row=page.locator('ouderapp-planning >> .slot').first();assert.match(await row.innerText(),/Gepland/);assert.match(await row.innerText(),/Bevestiging vereist/);assert.doesNotMatch(await row.innerText(),/Status onbekend/);
+  await page.evaluate(()=>fixture.planningStatus='future-status');await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._data?.events[0].status==='future-status');assert.match(await row.innerText(),/Status onbekend/);
+ });
  await test('planning period edits and account changes discard pending data',async()=>{
   await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>{window.planning=surface._planning;fixture.planningPending=true;});
   await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>fixture.deferred.length===1);
@@ -340,7 +347,7 @@ try {
   await page.setViewportSize({width:shot.width,height:shot.height});await page.goto(base+shot.query);
   if(shot.name!=='loading')await page.waitForFunction(()=>card._started&&!card._loading);
   if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];if(card._config.source==='news')fixture.articleImages=[{id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',name:'Synthetische nieuwsfoto'}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
-  if(shot.planning){await page.locator('ouderapp-panel >> #tab-planning').click();await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>surface._planning._data);}
+  if(shot.planning){await page.evaluate(()=>fixture.planningStatus='attend');await page.locator('ouderapp-panel >> #tab-planning').click();await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>surface._planning._data);}
   if(shot.selectRoom){await page.locator('ouderapp-card >> #conversation').selectOption(shot.selectRoom);await page.waitForFunction(()=>card._data?.items.length>0);}
   await page.waitForTimeout(100);await page.screenshot({path:new URL(shot.name+'.png',artifacts).pathname,fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow: ${shot.name}`);
