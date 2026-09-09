@@ -1,4 +1,4 @@
-/* OuderApp card 0.5.3 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.5.4 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -18,6 +18,7 @@ const STRINGS = {
     unsupported_response: 'Berichten konden niet worden geladen', unsupported_responseHint: 'Probeer opnieuw of controleer of er een update voor OuderApp is.',
     articleLoading: 'Tekst ophalen…', articleError: 'Tekst kon niet worden opgehaald.', articleEmpty: 'Dit item bevat geen ondersteunde tekst.', articlePreview: 'Alleen voorvertoning beschikbaar.', articleTruncated: 'Lange tekst is ingekort.',
     updated: 'Bijgewerkt', stale: 'Tijdelijk eerder opgehaalde berichten', read: 'Bericht lezen', close: 'Bericht sluiten',
+    diagnostic: 'Diagnosecode',
     attachments: 'Bijlagen', attachmentsHint: 'Bekijk deze bestanden in de officiële OuderApp.',
     photo: 'Foto', openPhoto: 'Foto vergroten', closePhoto: 'Vergrote foto sluiten', photoError: 'Foto niet beschikbaar',
     account: 'Account', group: 'Groep', allGroups: 'Alle groepen', title: 'Titel', limit: 'Aantal items',
@@ -43,6 +44,7 @@ const STRINGS = {
     unsupported_response: 'Could not load announcements', unsupported_responseHint: 'Try again or check for a OuderApp update.',
     articleLoading: 'Loading text…', articleError: 'Could not load the text.', articleEmpty: 'This item has no supported text.', articlePreview: 'Only a preview is available.', articleTruncated: 'Long text has been shortened.',
     updated: 'Updated', stale: 'Showing previously fetched announcements temporarily', read: 'Read announcement', close: 'Close announcement',
+    diagnostic: 'Diagnostic code',
     attachments: 'Attachments', attachmentsHint: 'View these files in the official OuderApp.',
     photo: 'Photo', openPhoto: 'Enlarge photo', closePhoto: 'Close enlarged photo', photoError: 'Photo unavailable',
     account: 'Account', group: 'Group', allGroups: 'All groups', title: 'Title', limit: 'Number of announcements',
@@ -57,6 +59,9 @@ const safeText = (value, max = 20000) => typeof value === 'string' ? value.slice
 const locale = (hass) => String(hass?.locale?.language || hass?.language || 'en');
 const words = (hass) => STRINGS[locale(hass).toLowerCase().startsWith('nl') ? 'nl' : 'en'];
 const errorCode = (error) => ['unauthorized', 'not_loaded', 'cannot_connect', 'authentication_expired', 'unsupported_response'].includes(error?.code) ? error.code : 'unsupported_response';
+const CONTENT_DIAGNOSTICS = new Set(['content.invalid_json', 'content.response_shape', 'content.provider_rejected', 'content.http_status', 'content.too_large', 'content.unsupported', 'content.internal_error', 'frontend.response_shape']);
+const diagnosticCode = error => errorCode(error) === 'unsupported_response' ? (CONTENT_DIAGNOSTICS.has(error?.message) ? error.message : 'frontend.unknown') : null;
+const diagnosticLabel = (hass, code) => `${words(hass).diagnostic}: ${code} · 0.5.4`;
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -246,6 +251,7 @@ class OuderAppCard extends HTMLElement {
     this._articles.clear();
     this._conversations = [];
     this._error = null;
+    this._diagnostic = null;
     this._loading = false;
     this._started = false;
     this._expanded.clear();
@@ -259,6 +265,7 @@ class OuderAppCard extends HTMLElement {
     this._loading = true;
     this._started = true;
     this._error = null;
+    this._diagnostic = null;
     this._render();
     try {
       const response = await hass.callWS({ type: 'ouderapp/accounts', ...(this._config.source === 'messages' ? { source: 'messages' } : {}) });
@@ -272,7 +279,7 @@ class OuderAppCard extends HTMLElement {
       if (this._config.source === 'messages') {
         const rooms = await hass.callWS({ type: 'ouderapp/content', kind: 'conversations', config_entry_id: account, limit: 20 });
         if (epoch !== this._epoch) return;
-        if (!Array.isArray(rooms?.items)) throw { code: 'unsupported_response' };
+        if (!Array.isArray(rooms?.items)) throw { code: 'unsupported_response', message: 'frontend.response_shape' };
         this._conversations = rooms.items.slice(0, 20).map((room) => ({ ...room, id: room.conversation_id })).filter((room) => room && typeof room.id === 'string' && /^[1-9][0-9]{0,19}$/.test(room.id));
         if (!this._conversations.length) { this._data = null; this._clearPhotos(); this._error = 'noConversations'; return; }
         if (!this._roomId) { this._data = null; this._error = 'chooseConversation'; return; }
@@ -283,7 +290,7 @@ class OuderAppCard extends HTMLElement {
       }
       const data = await hass.callWS(request);
       if (epoch !== this._epoch) return;
-      if (!Array.isArray(data?.items)) throw { code: 'unsupported_response' };
+      if (!Array.isArray(data?.items)) throw { code: 'unsupported_response', message: 'frontend.response_shape' };
       this._clearPhotos();
       this._data = { ...data, items: data.items.slice(0, this._config.limit).filter((item) => item && typeof item === 'object') };
       this._expanded.clear();
@@ -292,6 +299,7 @@ class OuderAppCard extends HTMLElement {
       this._data = null;
       this._conversations = [];
       this._error = errorCode(error);
+      this._diagnostic = diagnosticCode(error);
       this._expanded.clear();
       this._clearPhotos();
     } finally {
@@ -314,7 +322,7 @@ class OuderAppCard extends HTMLElement {
     try {
       const data = await this._hass.callWS({ type: 'ouderapp/content', config_entry_id: this._config.config_entry_id, kind: this._config.source, article: id, limit: 1 });
       if (epoch !== this._epoch || this._articles.get(key) !== state) return;
-      if (data?.detail !== true || data?.items?.length !== 1 || data.items[0].article_id !== id) throw { code: 'unsupported_response' };
+      if (data?.detail !== true || data?.items?.length !== 1 || data.items[0].article_id !== id) throw { code: 'unsupported_response', message: 'frontend.response_shape' };
       state.value = data.items[0]; state.stale = data.stale === true;
     } catch (error) {
       if (epoch !== this._epoch || this._articles.get(key) !== state) return;
@@ -323,6 +331,7 @@ class OuderAppCard extends HTMLElement {
         this._discard(); this._started = true; this._error = code; this._render(); return;
       }
       state.error = true;
+      state.diagnostic = diagnosticCode(error);
     } finally {
       if (epoch === this._epoch && this._articles.get(key) === state) { state.loading = false; this._render(); }
     }
@@ -390,6 +399,7 @@ class OuderAppCard extends HTMLElement {
       const key = this._error || (this._data ? (this._config.source === 'messages' ? 'emptyMessages' : 'empty') : 'choose');
       const state = el('div', 'state'); state.setAttribute('role', this._error && !['choose', 'noAccounts', 'chooseConversation', 'noConversations'].includes(key) ? 'alert' : 'status');
       state.append(icon(key === 'empty' ? 'message-text-outline' : key === 'unauthorized' ? 'lock-outline' : 'school-outline'), el('h3', '', t[key]), el('p', '', t[`${key}Hint`]));
+      if (key === 'unsupported_response' && this._diagnostic) state.append(el('p', 'diagnostic', diagnosticLabel(this._hass, this._diagnostic)));
       if (!['choose', 'noAccounts', 'empty', 'emptyMessages', 'chooseConversation', 'noConversations'].includes(key)) {
         const retry = button(t.retry, () => this._load(true), 'text-button'); retry.textContent = t.retry; state.append(retry);
       }
@@ -434,6 +444,7 @@ class OuderAppCard extends HTMLElement {
           const label = detail?.loading ? t.articleLoading : detail?.error ? t.articleError : detail?.value ? [!contents ? t.articleEmpty : '', detail.value.truncated ? t.articleTruncated : '', detail.stale ? t.stale : ''].filter(Boolean).join(' ') : t.articlePreview;
           if (label) { const status = el('p', 'meta', label); status.setAttribute('role', 'status'); article.append(status); }
           if (detail?.error) {
+            if (detail.diagnostic) article.append(el('p', 'meta diagnostic', diagnosticLabel(this._hass, detail.diagnostic)));
             const retry = button(t.retry, () => { this._articles.delete(key); this._loadArticle(item, key); }, 'text-button'); retry.id = `retry-${index}`; retry.textContent = t.retry; article.append(retry);
           }
         }

@@ -39,3 +39,5 @@ Date checks render the real card in Los Angeles, Amsterdam and Auckland: date-on
 Planning checks exercise the administrator-only panel tab, native call_service response shape, explicit loads, date bounds, per-day status labels, fresh ICS downloads, URL revocation, late period/account responses, disabled exports, parent/document visibility, tab closure and revoked administrator access. Desktop and mobile planning screenshots use synthetic names and slots.
 
 Attachment checks cover plain bounded names in timeline and selected conversations, expansion/collapse, no extra content requests, account-change cleanup and desktop/mobile screenshots. Attachments are opened in the official app; no file download is implemented.
+
+Diagnostic checks cover allowlisted server codes, hostile/unknown values, separate authentication errors and clearing after overview/detail retries. A mobile error screenshot shows the code and loaded card version.

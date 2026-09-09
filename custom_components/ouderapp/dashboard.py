@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 
-from .api import OuderAppAuthError, OuderAppConnectionError, OuderAppError
+from .api import OuderAppAuthError, OuderAppConnectionError, OuderAppError, OuderAppResponseError
 from .const import (
     CONF_DASHBOARD_VIEWERS,
     CONF_MESSAGE_VIEWERS,
@@ -32,9 +32,25 @@ PRIVATE_HEADERS = {
 
 
 class DashboardError(Exception):
-    def __init__(self, code: str, status: int = 502) -> None:
+    def __init__(self, code: str, status: int = 502, diagnostic: str | None = None) -> None:
         super().__init__(code)
         self.code, self.status = code, status
+        self.diagnostic = (
+            diagnostic
+            if isinstance(diagnostic, str)
+            and diagnostic
+            in {
+                "content.invalid_json",
+                "content.response_shape",
+                "content.provider_rejected",
+                "content.http_status",
+                "content.too_large",
+                "content.unsupported",
+                "content.internal_error",
+            }
+            and code == "unsupported_response"
+            else None
+        )
 
 
 def limit_value(value: Any) -> int:
@@ -90,11 +106,20 @@ async def read_content(
         raise DashboardError("authentication_expired", 503) from None
     except OuderAppConnectionError:
         raise DashboardError("cannot_connect", 503) from None
+    except OuderAppResponseError as error:
+        reason = (
+            error.reason
+            if isinstance(error.reason, str)
+            and error.reason
+            in {"invalid_json", "response_shape", "provider_rejected", "http_status", "too_large"}
+            else "unsupported"
+        )
+        raise DashboardError("unsupported_response", diagnostic=f"content.{reason}") from None
     except OuderAppError:
-        raise DashboardError("unsupported_response") from None
+        raise DashboardError("unsupported_response", diagnostic="content.unsupported") from None
     except Exception:
         # No provider content or signed media addresses in logs or error messages.
-        raise DashboardError("unsupported_response") from None
+        raise DashboardError("unsupported_response", diagnostic="content.internal_error") from None
     current = await entry_for_user(hass, entry_id, user_id, source)
     if current is not entry or current.runtime_data is not coordinator:
         raise DashboardError("not_loaded", 503)
@@ -147,7 +172,9 @@ async def websocket_content(hass: HomeAssistant, connection: Any, msg: dict[str,
             article=msg.get("article"),
         )
     except DashboardError as err:
-        connection.send_error(msg["id"], err.code, "OuderApp content is unavailable")
+        connection.send_error(
+            msg["id"], err.code, err.diagnostic or "OuderApp content is unavailable"
+        )
         return
     connection.send_result(msg["id"], result)
 
@@ -181,7 +208,11 @@ class OuderAppContentView(HomeAssistantView):
             args.pop("config_entry_id")
             result = await read_content(self.hass, config_entry_id, user.id, **args)
         except DashboardError as err:
-            return self.json({"code": err.code}, err.status, headers=PRIVATE_HEADERS)
+            return self.json(
+                {"code": err.code, **({"diagnostic": err.diagnostic} if err.diagnostic else {})},
+                err.status,
+                headers=PRIVATE_HEADERS,
+            )
         return self.json(result, headers=PRIVATE_HEADERS)
 
 

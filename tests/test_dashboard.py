@@ -8,7 +8,7 @@ from homeassistant.core import Context
 from homeassistant.exceptions import Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ouderapp.api import OuderAppAuthError
+from custom_components.ouderapp.api import OuderAppAuthError, OuderAppError, OuderAppResponseError
 
 FEED = {
     "items": [
@@ -179,12 +179,52 @@ async def test_auth_failure_revokes_both_sources(hass, account, hass_ws_client, 
     client = await hass_ws_client(hass)
     response = await ws(client, account)
     assert response["error"]["code"] == "authentication_expired"
+    assert "content." not in response["error"]["message"]
     assert not coordinator.messages._refs
     assert coordinator.content_auth_failed
     assert "PRIVATE-TOKEN" not in caplog.text + str(response)
     assert (await ws(client, account, kind="conversations"))["error"][
         "code"
     ] == "authentication_expired"
+
+
+@pytest.mark.parametrize(
+    "error,diagnostic",
+    [
+        (OuderAppResponseError("invalid_json", "content"), "content.invalid_json"),
+        (OuderAppResponseError("response_shape", "content"), "content.response_shape"),
+        (OuderAppResponseError("provider_rejected", "content"), "content.provider_rejected"),
+        (OuderAppResponseError("http_status", "content", 404), "content.http_status"),
+        (OuderAppResponseError("too_large", "content"), "content.too_large"),
+        (OuderAppResponseError("missing_refresh_token", "refresh"), "content.unsupported"),
+        (OuderAppError("PRIVATE-RAW-DATA"), "content.unsupported"),
+        (ValueError("PRIVATE-RAW-DATA"), "content.internal_error"),
+    ],
+)
+async def test_content_diagnostic_is_finite_in_real_ws_and_http(
+    hass, account, hass_ws_client, hass_client, caplog, error, diagnostic
+):
+    account.runtime_data.content.async_get_content.side_effect = error
+    client = await hass_ws_client(hass)
+    result = await ws(client, account)
+    assert result["error"] == {"code": "unsupported_response", "message": diagnostic}
+    http = await hass_client()
+    response = await http.get(f"/api/ouderapp/{account.entry_id}/content?kind=timeline")
+    assert response.status == 502
+    assert await response.json() == {"code": "unsupported_response", "diagnostic": diagnostic}
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert "PRIVATE-RAW-DATA" not in str(result) + caplog.text + await response.text()
+
+
+async def test_mutated_response_reason_cannot_leak_into_diagnostic(hass, account, hass_ws_client):
+    error = OuderAppResponseError("response_shape", "content")
+    error.reason = "PRIVATE-REASON"
+    error.stage = "PRIVATE-ACCOUNT"
+    account.runtime_data.content.async_get_content.side_effect = error
+    client = await hass_ws_client(hass)
+    result = await ws(client, account)
+    assert result["error"]["message"] == "content.unsupported"
+    assert "PRIVATE" not in str(result)
 
 
 async def test_content_action_requires_admin_but_supports_automation(

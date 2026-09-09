@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.5.3 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.5.4 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -26,7 +26,7 @@ De integratie en de bijbehorende kaart/pop-ups worden samen geïnstalleerd. Een 
 
 Versies vóór 0.2.2 verwerkten het nieuwsoverzicht verkeerd. Daardoor kon de teller wel werken terwijl de pop-up **Berichten konden niet worden geladen** toonde. De huidige versie bevat de correctie.
 
-Download de nieuwste versie van deze repository in HACS, herstart Home Assistant en herlaad vervolgens de browser of sluit en heropen de HA-app. Open daarna **Ongelezen nieuwsitems** opnieuw. Blijft de fout bestaan, vermeld dan de geïnstalleerde integratieversie; deel geen wachtwoord of accountgegevens. Dezelfde algemene melding kan ook een andere oorzaak hebben.
+Download de nieuwste versie van deze repository in HACS, herstart Home Assistant en herlaad vervolgens de browser of sluit en heropen de HA-app. Open daarna **Ongelezen nieuwsitems** opnieuw. Blijft de fout bestaan, vermeld dan de getoonde **diagnosecode** en versie, of de geïnstalleerde integratieversie als er nog geen code staat; deel geen wachtwoord of accountgegevens. Dezelfde algemene melding kan ook een andere oorzaak hebben.
 
 ## Wat is gebouwd?
 
@@ -48,12 +48,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.5.3-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.5.4-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.3`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.4`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 
@@ -186,3 +186,16 @@ De browsertests in `tests/frontend` gebruiken Playwright en uitsluitend verzonne
 GitHub voert bij een push naar `main` en bij pull requests de Home Assistant-tests, codecontrole, pakketopbouw en synthetische Chromium-proeven uit. De workflow gebruikt alleen leesrechten en geen ouderaccount of productie-HA. De controles gebruiken uitsluitend synthetische gegevens.
 
 Lokaal: gebruik Python 3.14 met `requirements-test.txt`, voer `python -m pytest --tb=short` uit en bouw pakketten met `python scripts/prepare_repository.py`. De browserproeven staan beschreven in `tests/frontend/README.md`. Action-commits en de npm-lockfile zijn vastgelegd; de Python-testplugin legt onder meer de geteste HA-versie vast. Transitive Python-afhankelijkheden met een versie-interval zijn niet volledig vergrendeld.
+
+## Diagnosecodes bij inhoudsfouten
+
+Sinds 0.5.4 toont de kaart bij een niet-ondersteund antwoord een beperkte diagnosecode met de kaartversie. Geef die tekst door als opnieuw proberen niet helpt. De code bevat geen accountgegevens of berichtinhoud. De versie naast de code is die van de geladen kaart; een oude browsercache kan een oudere versie tonen.
+
+- `content.response_shape`: het ontvangen formaat past niet bij het ondersteunde contract.
+- `content.invalid_json`, `content.http_status`, `content.provider_rejected`, `content.too_large`: het antwoord kon niet als geldige inhoud worden verwerkt.
+- `content.unsupported`: overige niet-ondersteunde inhoud of selectie.
+- `content.internal_error`: onverwachte fout bij de lokale verwerking.
+- `frontend.response_shape`: het antwoord aan de kaart heeft een afwijkend formaat.
+- `frontend.unknown`: de kaart kreeg geen herkende diagnosecode, bijvoorbeeld van een oudere backend.
+
+Dit zijn aanwijzingen voor onderzoek, geen bewijs van één specifieke oorzaak. Aanmelden, toegang en tijdelijke verbindingsproblemen houden hun eigen melding. De HTTP-inhoudsroute geeft de code in `diagnostic` terug; WebSocket behoudt `unsupported_response` als fouttype en gebruikt uitsluitend de beperkte diagnosecode als foutbericht.

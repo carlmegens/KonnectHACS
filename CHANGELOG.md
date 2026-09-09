@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.4 — gerichte diagnose bij inhoudsfouten
+
+Kaart en nieuwsdetails tonen bij een niet-ondersteund antwoord een korte diagnosecode met kaartversie. Die onderscheidt onder meer een afwijkend antwoordformaat, ongeldige JSON en onverwachte lokale verwerking. De melding wordt gewist bij opnieuw laden, accountwissel en geslaagd herstel.
+
+Alleen vaste toegestane codes worden weergegeven; ruwe foutberichten, accountwaarden en providerinhoud worden niet gebruikt. Onbekende waarden krijgen een algemene code. Bestaande aanmeld-, toegangs- en verbindingsmeldingen blijven behouden. Dit verbetert onderzoek van een volgende praktijkmelding en claimt geen nieuwe oorzaak of oplossing voor de eerdere screenshot.
+
 ## 0.5.3 — bijlagen herkennen
 
 Dagboekberichten en berichten in een gekozen gesprek tonen nu maximaal vijf bestandsnamen uit de officiële bijlagenlijst. De namen verschijnen bij uitklappen, met een verwijzing naar OuderApp om de bestanden te bekijken. Berichten met alleen een bijlage zijn daardoor herkenbaar.

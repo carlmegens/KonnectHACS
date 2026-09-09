@@ -33,7 +33,7 @@ const items = [
   {id:'m3',title:'Een kijkje in de klas',contents:'De eerste schoolweek zit erop. We hebben kennisgemaakt, samen afspraken gemaakt en de hoeken in de klas ontdekt. Fijn om iedereen weer te zien!',created_at:'2026-09-04T14:00:00+02:00',group_id:'20',group_name:'Voorbeeldgroep B',sender:'Team voorbeeldopvang',images:[{id:'cccccccccccccccccccccccccccccccc',name:'Derde synthetische testfoto'}]},
 ];
 window.fixture = {
-  items, calls:[], photoCalls:[], revoked:[], state:params.get('state')||'ready', deferred:[], userId:'synthetic-user', imageStatus:200,
+  items, calls:[], photoCalls:[], revoked:[], state:params.get('state')||'ready', diagnostic:params.get('diagnostic')||'', deferred:[], userId:'synthetic-user', imageStatus:200,
   pendingTypes:[], articlePending:false, articleError:null, articleImages:[], photoPending:false, photoDeferred:[],
   conversations:[{id:'101',title:'Contact met het voorbeeldteam',type:'private',sort_date:'2026-09-08T09:30:00+02:00',unread_count:2},{id:'202',title:'Bibliotheekbezoek',type:'group',sort_date:'2026-09-07T13:00:00+02:00',unread_count:0}],
   chatItems:{
@@ -64,9 +64,9 @@ window.makeHass = (userId=fixture.userId) => ({
     if(request.kind === 'messages' && !/^[1-9][0-9]{0,19}$/.test(request.conversation)) throw {code:'invalid_format'};
     if (request.type === 'ouderapp/accounts') return {accounts:fixture.state==='noaccount'||(request.source==='messages'&&!fixture.chatAllowed)?[]:fixture.accounts};
     if (request.article && fixture.articlePending) return new Promise((resolve,reject)=>fixture.deferred.push({resolve,reject,request}));
-    if (request.article && fixture.articleError) throw {code:fixture.articleError, message:'PRIVATE RAW ERROR'};
+    if (request.article && fixture.articleError) throw {code:fixture.articleError, message:fixture.diagnostic||'PRIVATE RAW ERROR'};
     if (fixture.state === 'loading' || fixture.pendingTypes.includes(request.kind)) return new Promise((resolve,reject)=>fixture.deferred.push({resolve,reject,request}));
-    if (['unauthorized','not_loaded','cannot_connect','authentication_expired','unsupported_response'].includes(fixture.state)) throw {code:fixture.state,message:'Never show this private raw error'};
+    if (['unauthorized','not_loaded','cannot_connect','authentication_expired','unsupported_response'].includes(fixture.state)) throw {code:fixture.state,message:fixture.diagnostic||'Never show this private raw error'};
     if(request.kind==='conversations') return {items:fixture.state==='noConversations'?[]:fixture.conversations.map(room=>({...room,conversation_id:room.id})),returned:fixture.conversations.length,limit:20};
     if(request.kind==='messages') {
       const selected=fixture.state==='empty'?[]:(fixture.chatItems[request.conversation]||[]).slice(0,request.limit);

@@ -51,6 +51,24 @@ try {
    await page.waitForFunction(()=>!card.shadowRoot.querySelector('.attachments'));
   }
  });
+ await test('content diagnostics accept only finite codes and clear after retry',async()=>{
+  await ready('?state=unsupported_response&diagnostic=content.response_shape');
+  assert.match(await page.locator('ouderapp-card >> .diagnostic').innerText(),/content.response_shape/);
+  for(const value of ['https://private.invalid/token','content.PRIVATE','<img src=x>',{},null]) {
+   await page.evaluate(async value=>{fixture.diagnostic=value;await card._load(true);},value);
+   assert.match(await page.locator('ouderapp-card >> .diagnostic').innerText(),/frontend.unknown/);
+   assert.doesNotMatch(await page.locator('ouderapp-card').innerText(),/PRIVATE|private.invalid/);
+  }
+  await page.evaluate(async()=>{fixture.state='authentication_expired';fixture.diagnostic='content.response_shape';await card._load(true);});assert.equal(await count('.diagnostic'),0);
+  await page.evaluate(async()=>{fixture.state='ready';await card._load(true);});assert.equal(await count('.diagnostic'),0);assert.ok(await count('article')>0);
+ });
+ await test('article diagnostic stays bounded and disappears after successful retry',async()=>{
+  await ready('?source=news');
+  await page.evaluate(async()=>{fixture.items=[{id:'0',article_id:'42',title:'Nieuws',contents:'Preview',images:[]}];fixture.articleError='unsupported_response';fixture.diagnostic='content.invalid_json';await card._load(true);});
+  await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>card.shadowRoot.querySelector('.diagnostic'));
+  assert.match(await page.locator('ouderapp-card >> .diagnostic').innerText(),/content.invalid_json/);
+  await page.evaluate(()=>fixture.articleError=null);await page.locator('ouderapp-card >> #retry-0').click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);assert.equal(await count('.diagnostic'),0);
+ });
  await test('HA state updates never cause feed refetches',async()=>{
   await ready();
   const before=await page.evaluate(()=>fixture.calls.length);
@@ -344,6 +362,7 @@ try {
  // One batched visual inspection: desktop/light + mobile/dark + editor + loading/error.
  const artifacts=new URL('./artifacts/',import.meta.url);await mkdir(artifacts,{recursive:true});
  for(const shot of [
+  {name:'diagnostic-mobile',width:390,height:750,query:'?state=unsupported_response&diagnostic=content.response_shape&theme=dark'},
   {name:'attachments-desktop',width:1100,height:1000,query:'',attachments:true},
   {name:'attachments-mobile',width:390,height:1100,query:'?theme=dark',attachments:true},
   {name:'planning-desktop',width:1100,height:1000,query:'?surface=panel&admin=1',planning:true},

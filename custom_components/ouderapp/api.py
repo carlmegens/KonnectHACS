@@ -127,7 +127,7 @@ def _items(value: Any, *keys: str) -> list[dict[str, Any]]:
     if isinstance(value, dict):
         value = next((value[key] for key in keys if key in value), None)
     if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
-        raise OuderAppError("Unexpected list shape")
+        raise OuderAppResponseError("response_shape", "content")
     return value[:MAX_ITEMS]
 
 
