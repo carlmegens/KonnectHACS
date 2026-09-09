@@ -10,7 +10,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ouderapp.api import OuderAppAuthError
 
-FEED = {"items": [{"contents": "PRIVATE-CONTENT", "images": []}], "stale": False}
+FEED = {
+    "items": [
+        {"contents": "PRIVATE-CONTENT", "images": [], "attachments": [{"name": "PRIVATE.pdf"}]}
+    ],
+    "stale": False,
+}
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-/* OuderApp card 0.5.2 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.5.3 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -18,6 +18,7 @@ const STRINGS = {
     unsupported_response: 'Berichten konden niet worden geladen', unsupported_responseHint: 'Probeer opnieuw of controleer of er een update voor OuderApp is.',
     articleLoading: 'Tekst ophalen…', articleError: 'Tekst kon niet worden opgehaald.', articleEmpty: 'Dit item bevat geen ondersteunde tekst.', articlePreview: 'Alleen voorvertoning beschikbaar.', articleTruncated: 'Lange tekst is ingekort.',
     updated: 'Bijgewerkt', stale: 'Tijdelijk eerder opgehaalde berichten', read: 'Bericht lezen', close: 'Bericht sluiten',
+    attachments: 'Bijlagen', attachmentsHint: 'Bekijk deze bestanden in de officiële OuderApp.',
     photo: 'Foto', openPhoto: 'Foto vergroten', closePhoto: 'Vergrote foto sluiten', photoError: 'Foto niet beschikbaar',
     account: 'Account', group: 'Groep', allGroups: 'Alle groepen', title: 'Titel', limit: 'Aantal items',
     images: 'Foto’s tonen', editorHint: 'Alleen accounts waarvoor je toegang hebt, worden getoond.',
@@ -42,6 +43,7 @@ const STRINGS = {
     unsupported_response: 'Could not load announcements', unsupported_responseHint: 'Try again or check for a OuderApp update.',
     articleLoading: 'Loading text…', articleError: 'Could not load the text.', articleEmpty: 'This item has no supported text.', articlePreview: 'Only a preview is available.', articleTruncated: 'Long text has been shortened.',
     updated: 'Updated', stale: 'Showing previously fetched announcements temporarily', read: 'Read announcement', close: 'Close announcement',
+    attachments: 'Attachments', attachmentsHint: 'View these files in the official OuderApp.',
     photo: 'Photo', openPhoto: 'Enlarge photo', closePhoto: 'Close enlarged photo', photoError: 'Photo unavailable',
     account: 'Account', group: 'Group', allGroups: 'All groups', title: 'Title', limit: 'Number of announcements',
     images: 'Show photos', editorHint: 'Only accounts you have permission to view are listed.',
@@ -125,6 +127,7 @@ const CSS = `
   .toggle ha-icon { flex:none; color:var(--secondary-text-color,#606060); }
   .sender { margin:0 0 8px; }
   .body { margin:0; font-size:14px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; max-width:75ch; }
+  .attachments { margin:8px 0; padding-inline-start:24px; font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
   .photos { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px; }
   .photo { display:flex; align-items:center; justify-content:center; width:100%; aspect-ratio:4/3; padding:0; border:0; border-radius:8px; background:var(--secondary-background-color,#f5f5f5); overflow:hidden; color:var(--secondary-text-color,#606060); }
   .photo img { width:100%; height:100%; object-fit:cover; }
@@ -418,6 +421,15 @@ class OuderAppCard extends HTMLElement {
         const contents = safeText(detail?.value ? detail.value.contents : item.contents);
         const body = el('p', 'body', expanded || contents.length <= 180 ? contents : `${contents.slice(0, 180).trimEnd()}…`);
         body.id = `body-${index}`; article.append(body);
+        const attachments = ['timeline', 'messages'].includes(this._config.source) && Array.isArray(item.attachments) ? item.attachments.slice(0, 5).map(file => safeText(file?.name, 256)).filter(Boolean) : [];
+        if (attachments.length) {
+          article.append(el('p', 'meta', `${t.attachments} (${attachments.length})`));
+          if (expanded) {
+            const files = el('ul', 'attachments');
+            for (const name of attachments) files.append(el('li', '', name));
+            article.append(files, el('p', 'meta', t.attachmentsHint));
+          }
+        }
         if (expanded && ['news', 'newsletters'].includes(this._config.source)) {
           const label = detail?.loading ? t.articleLoading : detail?.error ? t.articleError : detail?.value ? [!contents ? t.articleEmpty : '', detail.value.truncated ? t.articleTruncated : '', detail.stale ? t.stale : ''].filter(Boolean).join(' ') : t.articlePreview;
           if (label) { const status = el('p', 'meta', label); status.setAttribute('role', 'status'); article.append(status); }

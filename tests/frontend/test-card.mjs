@@ -37,7 +37,22 @@ try {
    } finally {await context.close();}
   }
  });
+ await test('attachment names expand as text without file requests and clear on account change',async()=>{
+  for(const source of ['timeline','messages']) {
+   await ready(source==='messages'?'?source=messages&room=101':'');
+   await page.evaluate(async source=>{const rows=source==='messages'?fixture.chatItems['101']:fixture.items;rows[0].attachments=[{name:'<img src=x onerror="window.__attachmentXss=1">.pdf'},...Array.from({length:7},(_,i)=>({name:'Bijlage '+i+'.pdf'}))];await card._load(true);},source);
+   assert.equal(await count('.attachments'),0);
+   const before=await page.evaluate(()=>fixture.calls.length);const toggle=page.locator('ouderapp-card >> .toggle').first();await toggle.focus();await page.keyboard.press('Enter');
+   assert.equal(await count('.attachments li'),5);assert.equal(await count('.attachments img'),0);assert.equal(await count('.attachments a'),0);
+   assert.match(await page.locator('ouderapp-card >> .attachments').innerText(),/<img src=x/);assert.equal(await page.evaluate(()=>window.__attachmentXss),undefined);
+   assert.equal(await page.evaluate(()=>fixture.calls.length),before);
+   await toggle.click();assert.equal(await count('.attachments'),0);await toggle.click();
+   await page.evaluate(()=>{fixture.state='loading';card.setConfig({...card._config,config_entry_id:'second-account'});});
+   await page.waitForFunction(()=>!card.shadowRoot.querySelector('.attachments'));
+  }
+ });
  await test('HA state updates never cause feed refetches',async()=>{
+  await ready();
   const before=await page.evaluate(()=>fixture.calls.length);
   await page.evaluate(()=>{for(let i=0;i<100;i++)card.hass=makeHass();});
   assert.equal(await page.evaluate(()=>fixture.calls.length),before);
@@ -329,6 +344,8 @@ try {
  // One batched visual inspection: desktop/light + mobile/dark + editor + loading/error.
  const artifacts=new URL('./artifacts/',import.meta.url);await mkdir(artifacts,{recursive:true});
  for(const shot of [
+  {name:'attachments-desktop',width:1100,height:1000,query:'',attachments:true},
+  {name:'attachments-mobile',width:390,height:1100,query:'?theme=dark',attachments:true},
   {name:'planning-desktop',width:1100,height:1000,query:'?surface=panel&admin=1',planning:true},
   {name:'planning-mobile',width:390,height:1100,query:'?surface=panel&admin=1&theme=dark',planning:true},
   {name:'newsletter-detail-desktop',width:1100,height:950,query:'?source=newsletters',article:true},
@@ -348,6 +365,7 @@ try {
   if(shot.name!=='loading')await page.waitForFunction(()=>card._started&&!card._loading);
   if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];if(card._config.source==='news')fixture.articleImages=[{id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',name:'Synthetische nieuwsfoto'}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
   if(shot.planning){await page.evaluate(()=>fixture.planningStatus='attend');await page.locator('ouderapp-panel >> #tab-planning').click();await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>surface._planning._data);}
+  if(shot.attachments){await page.evaluate(async()=>{fixture.items[0].attachments=[{name:'Informatie bibliotheekbezoek.pdf'},{name:'Praktische informatie voor het tuinproject en de afsluiting met de groep.pdf'}];await card._load(true);});await page.locator('ouderapp-card >> .toggle').first().click();}
   if(shot.selectRoom){await page.locator('ouderapp-card >> #conversation').selectOption(shot.selectRoom);await page.waitForFunction(()=>card._data?.items.length>0);}
   await page.waitForTimeout(100);await page.screenshot({path:new URL(shot.name+'.png',artifacts).pathname,fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow: ${shot.name}`);

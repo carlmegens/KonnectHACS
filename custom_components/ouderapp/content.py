@@ -207,6 +207,19 @@ def _safe_text(value: Any, maximum: int = 20000) -> str:
     return re.sub(r"https?://[^\s<>]+", "", text).strip()
 
 
+def _attachment_names(value: Any) -> list[dict[str, str]]:
+    """Expose only bounded display names; awsUrl stays outside the response."""
+    if not isinstance(value, list):
+        return []
+    names = []
+    for item in value[:20]:
+        if isinstance(item, dict) and (name := _safe_text(item.get("fileName"), 256)):
+            names.append({"name": name})
+            if len(names) == 5:
+                break
+    return names
+
+
 def _decode_image(data: bytes) -> bytes:
     """Decode in the executor, then output a small JPEG with no original metadata."""
     try:
@@ -320,6 +333,7 @@ class OuderAppContent:
         for index, row in enumerate(rows[:CONTENT_LIMIT]):
             title, text, sender = "", "", ""
             journal_parts = None
+            attachments = []
             date, unread, detail_id = row.get("date"), None, None
             photos = []
             if kind == "timeline":
@@ -330,6 +344,7 @@ class OuderAppContent:
                     # Parse independently: malformed HTML in one must not hide the other.
                     journal_parts = (journal.get("dayRythmContent"), text)
                     sender, photos = journal.get("writtenByName"), journal.get("photos")
+                    attachments = _attachment_names(journal.get("attachmentContentItems"))
                 elif row.get("type") == "photo":
                     title, photos = "Foto's", row.get("photos")
                 else:
@@ -341,6 +356,7 @@ class OuderAppContent:
                 detail_id = conversation_id(row.get("logMessageMessageId"))
             elif kind == "messages":
                 text, sender, photos = row.get("message"), row.get("writtenBy"), row.get("photos")
+                attachments = _attachment_names(row.get("attachmentContentItems"))
             elif kind == "news":
                 title, text = row.get("title"), row.get("contentSnippet")
                 date, unread = row.get("publishDate"), row.get("isNew")
@@ -395,6 +411,7 @@ class OuderAppContent:
                     "conversation_id": detail_id,
                     "article_id": article_id,
                     "images": images,
+                    "attachments": attachments,
                 }
             )
         return {

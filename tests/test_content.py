@@ -93,6 +93,43 @@ async def test_combined_journal_text_keeps_the_total_output_bound(hass):
     await feed.async_close()
 
 
+@pytest.mark.parametrize("kind", ["timeline", "messages"])
+async def test_attachment_names_are_bounded_private_and_never_downloaded(hass, kind):
+    attachments = [None, {"fileName": 42}, {"fileName": URL}] + [
+        {"fileName": f"<b>Brief {n}.pdf</b>", "awsUrl": URL, "contentType": "PRIVATE"}
+        for n in range(8)
+    ]
+    api = AsyncMock()
+    api.async_get_timeline.return_value = [
+        {"type": "journal", "journal": {"attachmentContentItems": attachments}}
+    ]
+    api.async_get_conversation.return_value = [{"attachmentContentItems": attachments}]
+    feed = OuderAppContent(hass, api, messages=kind == "messages")
+    result = await feed.async_get_content(kind, conversation="1" if kind == "messages" else None)
+    assert result["items"][0]["attachments"] == [{"name": f"Brief {n}.pdf"} for n in range(5)]
+    assert not feed._refs
+    assert feed._session is None
+    assert "PRIVATE" not in str(result)
+    assert "private-signature" not in str(result)
+    assert "awsUrl" not in str(result)
+    result["items"][0]["attachments"][0]["name"] = "MUTATED"
+    cached = await feed.async_get_content(kind, conversation="1" if kind == "messages" else None)
+    assert cached["items"][0]["attachments"][0]["name"] == "Brief 0.pdf"
+    await feed.async_close()
+
+
+@pytest.mark.parametrize("value", [None, {}, "not-a-list", [None] * 20 + [{"fileName": "Hidden"}]])
+def test_unknown_or_excess_attachment_candidates_are_ignored(value):
+    assert module._attachment_names(value) == []
+
+
+def test_attachment_names_have_a_length_bound_and_decode_once():
+    assert module._attachment_names([{"fileName": "A" * 1000}]) == [{"name": "A" * 256}]
+    assert module._attachment_names([{"fileName": "&lt;document&gt;.pdf"}]) == [
+        {"name": "<document>.pdf"}
+    ]
+
+
 @pytest.mark.parametrize(
     "kind,method,row,title,text,date",
     [

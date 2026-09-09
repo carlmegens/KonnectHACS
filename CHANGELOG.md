@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.3 — bijlagen herkennen
+
+Dagboekberichten en berichten in een gekozen gesprek tonen nu maximaal vijf bestandsnamen uit de officiële bijlagenlijst. De namen verschijnen bij uitklappen, met een verwijzing naar OuderApp om de bestanden te bekijken. Berichten met alleen een bijlage zijn daardoor herkenbaar.
+
+Alleen gewone tekstnamen worden doorgegeven; downloadadressen, bestandstypen en overige brongegevens blijven buiten het antwoord. De bestaande bronrechten, accountwissels en verborgen-kaartafhandeling gelden ook voor deze vermelding. Er wordt geen bijlage opgehaald en geen downloadknop gesuggereerd. Het transport gebruikt volgens de officiële app awsUrl, maar een ondersteunde vaste bestandshost is nog niet aangetoond.
+
 ## 0.5.2 — dagritme in het dagboek
 
 Dagboekkaarten tonen nu ook de door de opvang aangeleverde dagritmetekst, vóór de dagboektekst, zoals in de officiële app. Een kaart met alleen dagritme blijft daardoor niet langer zonder tekst. Beide velden worden afzonderlijk naar gewone tekst omgezet; afwijkende HTML in het ene veld verbergt het andere niet. De gezamenlijke tekst blijft begrensd op 20.000 tekens.
