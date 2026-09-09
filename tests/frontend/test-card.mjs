@@ -257,10 +257,73 @@ try {
   await page.locator('ouderapp-card >> .toggle').click();await page.waitForFunction(()=>card._error==='unauthorized');
   assert.equal(await count('article'),0);assert.equal(await page.evaluate(()=>card._articles.size),0);
  });
+ await test('planning tab is admin-only and reads only after an explicit action',async()=>{
+  await ready('?surface=panel');assert.equal(await page.locator('ouderapp-panel >> #tab-planning').count(),0);
+  await page.evaluate(()=>surface.route={path:'/example-account?source=planning'});assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.type==='call_service').length),0);
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-timeline').focus();await page.keyboard.press('End');
+  await page.waitForFunction(()=>surface._source==='planning');await page.evaluate(()=>window.planning=surface._planning);
+  assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.type==='call_service').length),0);
+  assert.equal(await page.locator('ouderapp-planning >> #planning-download').isDisabled(),true);
+  const load=page.locator('ouderapp-planning >> #planning-load');await load.focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>planning._data&&!planning._busy);
+  assert.equal(await page.locator('ouderapp-planning >> .slot').count(),2);
+  const text=await page.locator('ouderapp-planning >> ha-card').innerText();assert.match(text,/Voorlopig/);assert.match(text,/Afwezig/);assert.match(text,/Bevestiging vereist/);
+  assert.equal(await load.evaluate(el=>el.getRootNode().activeElement===el),true);
+  const countBefore=await page.evaluate(()=>fixture.calls.length);await page.evaluate(()=>{for(let i=0;i<20;i++)surface.hass=makeHass();});assert.equal(await page.evaluate(()=>fixture.calls.length),countBefore);
+  const downloadEvent=page.waitForEvent('download');await page.locator('ouderapp-planning >> #planning-download').click();const download=await downloadEvent;
+  assert.match(download.suggestedFilename(),/^ouderapp-[0-9-]+\.ics$/);
+  const textFile=await (await import('node:fs/promises')).readFile(await download.path(),'utf8');assert.match(textFile,/^BEGIN:VCALENDAR\r\n/);
+  assert.equal(await page.evaluate(()=>fixture.calls.filter(x=>x.type==='call_service').at(-1).service_data.format),'ics');
+  await page.waitForFunction(()=>!planning._url);assert.ok(await page.evaluate(()=>fixture.revoked.length>0));
+ });
+ await test('planning period edits and account changes discard pending data',async()=>{
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>{window.planning=surface._planning;fixture.planningPending=true;});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>fixture.deferred.length===1);
+  await page.locator('ouderapp-planning >> #planning-end').fill('2100-12-31');await page.locator('ouderapp-planning >> #planning-end').press('Tab');
+  await page.evaluate(()=>fixture.deferred[0].resolve({response:{events:[{child:'OLD PERIOD SECRET'}]}}));await page.waitForTimeout(30);assert.equal(await page.evaluate(()=>planning._data),null);
+  await page.locator('ouderapp-planning >> #planning-load').click();assert.match(await page.locator('ouderapp-planning >> [role=alert]').innerText(),/31 dagen/);
+  assert.equal(await page.evaluate(()=>fixture.deferred.length),1);
+  await page.evaluate(()=>{planning._end=new Date(Date.parse(planning._start)+7*86400000).toISOString().slice(0,10);planning._render();});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>fixture.deferred.length===2);
+  await page.evaluate(()=>surface.route={path:'/second-account?source=planning'});
+  await page.evaluate(()=>fixture.deferred[1].resolve({response:{events:[{child:'OLD ACCOUNT SECRET'}]}}));await page.waitForTimeout(30);
+  assert.equal(await page.evaluate(()=>planning._account),'second-account');assert.equal(await page.evaluate(()=>planning._data),null);
+  assert.doesNotMatch(await page.locator('ouderapp-planning >> ha-card').innerText(),/SECRET/);
+ });
+ await test('planning errors and incomplete results disable download and hide provider messages',async()=>{
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>{window.planning=surface._planning;fixture.planningError=true;});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._error);
+  assert.doesNotMatch(await page.locator('ouderapp-planning >> ha-card').innerText(),/PRIVATE-RAW/);
+  for(const flag of ['planningOffline','planningTruncated','planningEmpty']) {
+   await page.evaluate(flag=>{fixture.planningError=false;fixture.planningOffline=false;fixture.planningTruncated=false;fixture.planningEmpty=false;fixture[flag]=true;},flag);
+   await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._data&&!planning._busy);
+   assert.equal(await page.locator('ouderapp-planning >> #planning-download').isDisabled(),true);
+   const text=await page.locator('ouderapp-planning >> ha-card').innerText();assert.match(text,flag==='planningOffline'?/offline/:flag==='planningTruncated'?/100 momenten/:/Geen opvangmomenten/);
+  }
+ });
+ await test('planning parent hidden during a request cannot retain its response',async()=>{
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>{window.planning=surface._planning;fixture.planningPending=true;});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>fixture.deferred.length===1);
+  await page.evaluate(()=>surface.style.display='none');await page.waitForFunction(()=>!planning._busy);
+  await page.evaluate(()=>fixture.deferred[0].resolve({response:{events:[{child:'HIDDEN SECRET'}]}}));await page.waitForTimeout(30);assert.equal(await page.evaluate(()=>planning._data),null);
+  await page.evaluate(()=>surface.style.display='');assert.equal(await page.locator('ouderapp-planning >> .slot').count(),0);
+ });
+ await test('hidden planning, tab closure and admin revocation clear private state',async()=>{
+  await ready('?surface=panel&admin=1');await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>window.planning=surface._planning);
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._data);
+  await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
+  assert.equal(await page.evaluate(()=>planning._data),null);assert.equal(await page.locator('ouderapp-planning >> .slot').count(),0);
+  await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'));fixture.planningPending=true;});
+  await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>fixture.deferred.length===1);
+  await page.locator('ouderapp-panel >> #tab-news').click();await page.evaluate(()=>fixture.deferred[0].resolve({response:{events:[{child:'LATE SECRET'}]}}));await page.waitForTimeout(30);assert.equal(await page.evaluate(()=>planning._data),null);
+  await page.locator('ouderapp-panel >> #tab-planning').click();await page.evaluate(()=>fixture.planningPending=false);await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>planning._data);
+  await page.evaluate(()=>{fixture.admin=false;surface.hass=makeHass();});assert.equal(await page.evaluate(()=>planning._data),null);assert.equal(await page.locator('ouderapp-panel >> #tab-planning').count(),0);
+ });
  if(!process.env.OUDERAPP_SKIP_SCREENSHOTS) {
  // One batched visual inspection: desktop/light + mobile/dark + editor + loading/error.
  const artifacts=new URL('./artifacts/',import.meta.url);await mkdir(artifacts,{recursive:true});
  for(const shot of [
+  {name:'planning-desktop',width:1100,height:1000,query:'?surface=panel&admin=1',planning:true},
+  {name:'planning-mobile',width:390,height:1100,query:'?surface=panel&admin=1&theme=dark',planning:true},
   {name:'newsletter-detail-desktop',width:1100,height:950,query:'?source=newsletters',article:true},
   {name:'news-detail-mobile',width:390,height:950,query:'?source=news&theme=dark',article:true},
   {name:'desktop-light',width:1100,height:1050,query:''},
@@ -277,6 +340,7 @@ try {
   await page.setViewportSize({width:shot.width,height:shot.height});await page.goto(base+shot.query);
   if(shot.name!=='loading')await page.waitForFunction(()=>card._started&&!card._loading);
   if(shot.article){await page.evaluate(async()=>{fixture.items=[{id:"0",article_id:"42",title:"Samen naar de bibliotheek",contents:"Deze week bezoeken we met de groep de bibliotheek.",images:[]}];if(card._config.source==='news')fixture.articleImages=[{id:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',name:'Synthetische nieuwsfoto'}];await card._load(true);});await page.locator("ouderapp-card >> .toggle").click();await page.waitForFunction(()=>Array.from(card._articles.values())[0]?.value);}
+  if(shot.planning){await page.locator('ouderapp-panel >> #tab-planning').click();await page.locator('ouderapp-planning >> #planning-load').click();await page.waitForFunction(()=>surface._planning._data);}
   if(shot.selectRoom){await page.locator('ouderapp-card >> #conversation').selectOption(shot.selectRoom);await page.waitForFunction(()=>card._data?.items.length>0);}
   await page.waitForTimeout(100);await page.screenshot({path:new URL(shot.name+'.png',artifacts).pathname,fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow: ${shot.name}`);

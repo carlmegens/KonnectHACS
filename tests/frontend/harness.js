@@ -40,16 +40,25 @@ window.fixture = {
     '101':[{id:'1001',contents:'Goedemorgen! Hierbij een kleine indruk van het tuinproject. De groep heeft vandaag de eerste plantjes verzorgd.',sender:'Team voorbeeldopvang',created_at:'2026-09-08T09:30:00+02:00',images:[{id:'dddddddddddddddddddddddddddddddd',name:'Synthetische gespreksfoto'}]},{id:'1002',contents:'Bedankt voor het bericht. Leuk om te zien waar jullie aan werken!',sender:'Voorbeeldouder',created_at:'2026-09-08T09:15:00+02:00',images:[]}],
     '202':[{id:'2001',contents:'De boeken voor ons bezoek staan klaar. Neem woensdag de bibliotheekpas mee.',sender:'Voorbeeldteam bibliotheek',created_at:'2026-09-07T13:00:00+02:00',images:[]}],
   },
-  chatAllowed:true,
+  chatAllowed:true, admin:params.has('admin'), planningPending:false, planningError:false, planningOffline:false, planningTruncated:false, planningEmpty:false,
   groups:[{id:'10',name:'Voorbeeldgroep A'},{id:'20',name:'Voorbeeldgroep B'}],
   accounts:[{config_entry_id:'example-account',title:'Voorbeeldopvang'},{config_entry_id:'second-account',title:'Tweede voorbeeldaccount'}],
 };
 const originalRevoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=(url)=>{fixture.revoked.push(url);originalRevoke(url);};
 window.makeHass = (userId=fixture.userId) => ({
   devices:{'synthetic-device':{id:'synthetic-device',config_entries:['example-account']}},
-  user:{id:userId},locale:{language:params.get('lang')||'nl'},
+  user:{id:userId,is_admin:fixture.admin},locale:{language:params.get('lang')||'nl'},
   async callWS(request) {
     fixture.calls.push({...request});
+    if(request.type==='call_service') {
+      if(!fixture.admin)throw {code:'unauthorized'};
+      if(request.domain!=='ouderapp'||request.service!=='get_planning'||request.return_response!==true)throw {code:'invalid_format'};
+      if(fixture.planningPending)return new Promise((resolve,reject)=>fixture.deferred.push({resolve,reject,request}));
+      if(fixture.planningError)throw {code:'unknown_error',message:'PRIVATE-RAW-PLANNING'};
+      const d=request.service_data;
+      const events=fixture.planningEmpty?[]:[{id:'slot-1',child:'Voorbeeldkind',start:d.start_date+'T14:30:00+02:00',end:d.start_date+'T18:00:00+02:00',status:'tentative',confirmation_required:true},{id:'slot-2',child:'Tweede voorbeeldkind',start:d.start_date+'T15:00:00+02:00',end:d.start_date+'T17:00:00+02:00',status:'absent',confirmation_required:false}];
+      return {context:{id:'synthetic'},response:{events,start_date:d.start_date,end_date:d.end_date,time_zone:'Europe/Amsterdam',data_connector_offline:fixture.planningOffline,truncated:fixture.planningTruncated,...(d.format==='ics'?{calendar:'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n'}:{})}};
+    }
     if(request.type === 'ouderapp/content' && (!Number.isInteger(request.limit) || request.limit<1 || request.limit>20)) throw {code:'invalid_format'};
     if(request.type === 'ouderapp/content' && !['timeline','news','newsletters','conversations','messages'].includes(request.kind)) throw {code:'invalid_format'};
     if(request.kind === 'messages' && !/^[1-9][0-9]{0,19}$/.test(request.conversation)) throw {code:'invalid_format'};

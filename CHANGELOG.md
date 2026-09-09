@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.0 — planning in het OuderApp-paneel
+
+Nieuwe beheerdertab **Opvangplanning** met datumkeuze, een lijst per dag, expliciet ophalen en ICS-download. De tab gebruikt de bestaande native Home Assistant-beheerderactie. Standaard wordt een week gekozen; datumgrenzen, Nederlandse tijdzone, opvangstatussen en bronwaarschuwingen blijven behouden.
+
+Downloaden haalt een verse momentopname op. Lege, afgekorte of offline planning kan niet worden gedownload. Wisselen van periode/account/tab, intrekken van beheerderrechten of verbergen/sluiten wist privédata en verwerpt late antwoorden; download-URL’s worden opgeruimd. Geen automatische verversing, kalenderimport, abonnement of opvangwijziging. Browserproeven gebruiken synthetische gegevens; echte planning en mobiele HA-downloadafhandeling moeten nog in de praktijk worden gecontroleerd.
+
 ## 0.4.1 — berichtdatums behouden
 
 Getalsdatums in milliseconden worden nu als gecontroleerde ISO-tijdstippen doorgegeven voor tijdlijn, nieuws, nieuwsbrieven en gesprekken. Die datums verdwenen eerder doordat alleen tekst werd geaccepteerd. ISO-datums en tijdstippen blijven ondersteund; ongeldige of buitenbereikwaarden leveren geen datumlabel op.

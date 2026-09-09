@@ -392,3 +392,39 @@ async def test_calendar_refuses_incomplete_or_empty_snapshots_but_json_still_wor
         export_calendar(result)
     with pytest.raises(HomeAssistantError):
         await call_planning(hass, planning_account, Context(), limit=limit, format="ics")
+
+
+@pytest.mark.parametrize("admin", [False, True])
+async def test_planning_native_websocket_service_response_contract(
+    hass,
+    planning_account,
+    mock_api,
+    hass_ws_client,
+    hass_access_token,
+    hass_read_only_access_token,
+    admin,
+):
+    client = await hass_ws_client(
+        hass, access_token=hass_access_token if admin else hass_read_only_access_token
+    )
+    await client.send_json_auto_id(
+        {
+            "type": "call_service",
+            "domain": "ouderapp",
+            "service": "get_planning",
+            "return_response": True,
+            "service_data": {
+                "config_entry_id": planning_account.entry_id,
+                "start_date": "2026-10-25",
+                "end_date": "2026-10-26",
+                "format": "ics",
+            },
+        }
+    )
+    result = await client.receive_json()
+    assert result["success"] is admin
+    if admin:
+        response = result["result"]["response"]
+        assert len(Calendar.from_ical(response["calendar"]).walk("VEVENT")) == 1
+    else:
+        mock_api.async_get_planning.assert_not_awaited()

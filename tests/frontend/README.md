@@ -35,3 +35,5 @@ Article checks exercise on-demand news/newsletter expansion, keyboard focus, ret
 News photo checks cover authenticated images after expansion, hidden-photo URL revocation, late download rejection and the show-photos option. The mobile news-detail screenshot includes a locally drawn synthetic photo.
 
 Date checks render the real card in Los Angeles, Amsterdam and Auckland: date-only values retain their day without an invented time, and timestamp labels respect the Dutch DST transition.
+
+Planning checks exercise the administrator-only panel tab, native call_service response shape, explicit loads, date bounds, per-day status labels, fresh ICS downloads, URL revocation, late period/account responses, disabled exports, parent/document visibility, tab closure and revoked administrator access. Desktop and mobile planning screenshots use synthetic names and slots.

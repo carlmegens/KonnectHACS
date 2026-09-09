@@ -1,4 +1,4 @@
-/* OuderApp card 0.4.1 — content stays in this card's memory, never in entity states. */
+/* OuderApp card 0.5.0 — content stays in this card's memory, never in entity states. */
 const STRINGS = {
   nl: {
     timeline: 'Tijdlijn', news: 'Nieuws', newsletters: 'Nieuwsbrieven', conversations: 'Gesprekken', source: 'Inhoud', conversation: 'Gesprek', message: 'Bericht',
@@ -645,6 +645,106 @@ class MoreInfoOuderApp extends HTMLElement {
   }
 }
 
+const planningWords = (hass) => locale(hass).startsWith('nl') ? {
+  title:'Opvangplanning', start:'Vanaf', end:'Tot (deze dag niet inbegrepen)', load:'Planning ophalen', download:'Kalender downloaden',
+  period:'Kies 1 tot 31 dagen. Datums en tijden gelden voor Nederland.', choose:'Kies een account om de planning op te halen.', admin:'Planning is alleen beschikbaar voor beheerders.',
+  initial:'Kies een periode en haal de planning op.', loading:'Planning ophalen…', empty:'Geen opvangmomenten in deze periode.',
+  invalid:'Kies geldige datums met een einddatum 1 tot 31 dagen na de begindatum.', error:'Planning kon niet worden opgehaald. Probeer opnieuw of controleer de OuderApp-integratie.',
+  offline:'De planningskoppeling is offline. Deze gegevens kunnen verouderd zijn; controleer OuderApp.', truncated:'Er zijn meer dan 100 momenten. Kies een kortere periode om alles te zien.',
+  tentative:'Voorlopig', absent:'Afwezig', unknown:'Status onbekend', confirm:'Bevestiging vereist',
+  snapshot:'Een download is een momentopname. Gebruik een aparte kalender die je bij een volgende import vervangt; wijzigingen worden niet automatisch bijgewerkt.',
+} : {
+  title:'Childcare planning', start:'From', end:'Until (this day excluded)', load:'Load planning', download:'Download calendar',
+  period:'Choose 1 to 31 days. Dates and times use the Netherlands time zone.', choose:'Choose an account to load planning.', admin:'Planning is available to administrators only.',
+  initial:'Choose a period and load the planning.', loading:'Loading planning…', empty:'No childcare slots in this period.',
+  invalid:'Choose valid dates with an end date 1 to 31 days after the start.', error:'Could not load planning. Try again or check the OuderApp integration.',
+  offline:'The planning connection is offline. These details may be outdated; check OuderApp.', truncated:'There are more than 100 slots. Choose a shorter period to see them all.',
+  tentative:'Tentative', absent:'Absent', unknown:'Unknown status', confirm:'Confirmation required',
+  snapshot:'A download is a snapshot. Use a separate calendar that you replace with each import; changes are not synchronized automatically.',
+};
+class OuderAppPlanning extends HTMLElement {
+  constructor() {
+    super(); this.attachShadow({mode:'open'}); this._epoch=0; this._account='';
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const part = (type) => parts.find(p=>p.type===type).value;
+    this._start=`${part('year')}-${part('month')}-${part('day')}`;
+    this._end=new Date(Date.parse(this._start)+7*86400000).toISOString().slice(0,10);
+    this._visibility=()=>{if(document.visibilityState==='hidden'){this._clear();this._render();}};
+  }
+  setContext(hass, account) {
+    const key=`${account}|${hass?.user?.id}|${hass?.user?.is_admin===true}`;
+    const language=locale(hass);
+    const changed=key!==this._key || language!==this._language;
+    this._hass=hass; this._account=account; this._language=language;
+    if(key!==this._key){this._key=key;this._clear();}
+    if(changed)this._render();
+  }
+  connectedCallback(){document.addEventListener('visibilitychange',this._visibility);this._render();if('IntersectionObserver' in window){this._observer=new IntersectionObserver(()=>{if(!this.getClientRects().length){this._clear();this._render();}});this._observer.observe(this);}}
+  disconnectedCallback(){document.removeEventListener('visibilitychange',this._visibility);this._observer?.disconnect();this._clear();this._render();}
+  _clear(){this._epoch++;this._data=null;this._busy=false;this._error=null;clearTimeout(this._urlTimer);if(this._url)URL.revokeObjectURL(this._url);this._url=null;}
+  _eligible(){return this.isConnected && this.getClientRects().length>0 && document.visibilityState!=='hidden' && this._hass?.user?.is_admin===true && /^[A-Za-z0-9_-]{1,128}$/.test(this._account);}
+  _periodValid(){
+    const valid=(v)=>/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0,10)===v && v>='1970-01-01' && v<='2100-12-31';
+    const days=(Date.parse(this._end)-Date.parse(this._start))/86400000;
+    return valid(this._start)&&valid(this._end)&&days>=1&&days<=31;
+  }
+  async _load(download=false){
+    if(!this._eligible()||this._busy)return;
+    if(!this._periodValid()){this._error='invalid';this._render();return;}
+    const start=this._start,end=this._end; this._clear();this._busy=true;const epoch=this._epoch;this._render();
+    try{
+      const result=await this._hass.callWS({type:'call_service',domain:'ouderapp',service:'get_planning',service_data:{config_entry_id:this._account,start_date:start,end_date:end,limit:100,format:download?'ics':'json'},return_response:true});
+      if(epoch!==this._epoch||!this._eligible())return;
+      const data=result?.response;
+      if(!data||data.start_date!==start||data.end_date!==end||!Array.isArray(data.events)||data.events.length>100||data.time_zone!=='Europe/Amsterdam'||typeof data.truncated!=='boolean'||typeof data.data_connector_offline!=='boolean'||data.events.some(event=>!event||typeof event.start!=='string'||typeof event.end!=='string'||!Number.isFinite(Date.parse(event.start))||!Number.isFinite(Date.parse(event.end))||Date.parse(event.end)<=Date.parse(event.start)))throw new Error();
+      if(download){
+        if(data.truncated||data.data_connector_offline||!data.events.length||typeof data.calendar!=='string'||data.calendar.length>1024*1024||!data.calendar.startsWith('BEGIN:VCALENDAR\r\n')||!data.calendar.endsWith('END:VCALENDAR\r\n'))throw new Error();
+        this._url=URL.createObjectURL(new Blob([data.calendar],{type:'text/calendar;charset=utf-8'}));
+        const link=el('a');link.href=this._url;link.download=`ouderapp-${start}-${end}.ics`;this.shadowRoot.append(link);link.click();link.remove();
+        this._urlTimer=setTimeout(()=>{if(this._url)URL.revokeObjectURL(this._url);this._url=null;},1000);
+      }
+      // Retain only the fields needed for the view, never the downloaded file.
+      this._data={events:data.events,offline:data.data_connector_offline===true,truncated:data.truncated===true};
+    }catch{if(epoch===this._epoch){this._data=null;this._error='error';}}
+    finally{if(epoch===this._epoch){this._busy=false;this._render();}}
+  }
+  _render(){
+    const focus=this.shadowRoot.activeElement?.id || (document.activeElement===document.body?this._pendingFocus:null);this._pendingFocus=null;
+    const t=planningWords(this._hass);const style=el('style');style.textContent=CSS+`
+      .planning {padding:20px;} .dates{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0;} .dates label{display:grid;gap:6px;flex:1 1 180px;min-width:0;}
+      input{box-sizing:border-box;max-width:100%;min-width:0;padding:10px;border:1px solid var(--divider-color,#aaa);border-radius:6px;background:var(--card-background-color,#fff);color:inherit;font:inherit;}
+      .actions{display:flex;flex-wrap:wrap;gap:8px;} .actions button{min-height:44px;padding:8px 12px;} h3{margin:20px 0 8px;} .slot{border-top:1px solid var(--divider-color,#ddd);padding:12px 0;overflow-wrap:anywhere;} .slot p{margin:4px 0;} .notice{margin:12px 0;} .hint{margin-top:12px;line-height:1.5;} [role=status]{line-height:1.5;}
+    `;
+    const card=el('ha-card','planning');card.append(el('h2','',t.title));
+    if(this._hass?.user?.is_admin!==true||!this._account){card.append(el('p','',this._hass?.user?.is_admin===true?t.choose:t.admin));this.shadowRoot.replaceChildren(style,card);return;}
+    const form=el('form');const dates=el('div','dates');
+    for(const [key,label] of [['start',t.start],['end',t.end]]){
+      const field=el('label','',label);const input=el('input');input.type='date';input.id=`planning-${key}`;input.value=this[`_${key}`];input.min='1970-01-01';input.max='2100-12-31';input.required=true;input.setAttribute('aria-describedby','planning-period');
+      input.addEventListener('change',()=>{this[`_${key}`]=input.value;this._clear();this._render();});field.append(input);dates.append(field);
+    }
+    const hint=el('p','hint',t.period);hint.id='planning-period';form.append(dates,hint);
+    const actions=el('div','actions');const load=button(t.load,()=>this._load(),'text-button');load.id='planning-load';load.textContent=t.load;load.disabled=this._busy;actions.append(load);
+    const download=button(t.download,()=>this._load(true),'text-button');download.id='planning-download';download.textContent=t.download;download.disabled=this._busy||!this._data?.events.length||this._data.offline||this._data.truncated;actions.append(download);
+    form.addEventListener('submit',(event)=>{event.preventDefault();this._load();});form.append(actions);card.append(form);
+    const status=el('p','',this._busy?t.loading:this._error?t[this._error]:!this._data?t.initial:!this._data.events.length?t.empty:'');status.setAttribute('role',this._error?'alert':'status');card.append(status);
+    if(this._data){
+      for(const flag of ['offline','truncated'])if(this._data[flag]){const notice=el('p','notice',t[flag]);notice.setAttribute('role','alert');card.append(notice);}
+      let day='';
+      for(const event of this._data.events){
+        const start=new Date(event.start),end=new Date(event.end);if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))continue;
+        const dateKey=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam'}).format(start);
+        if(dateKey!==day){day=dateKey;card.append(el('h3','',new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',dateStyle:'full'}).format(start)));}
+        const row=el('div','slot');const times=new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',timeStyle:'short'});
+        const endDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam'}).format(end);
+        row.append(el('strong','',safeText(event.child,100)||'Opvang'),el('p','',`${times.format(start)} – ${endDay!==day?new Intl.DateTimeFormat(this._language,{timeZone:'Europe/Amsterdam',dateStyle:'short'}).format(end)+' ':''}${times.format(end)}`),el('p','',t[['tentative','absent'].includes(event.status)?event.status:'unknown']));
+        if(event.confirmation_required===true)row.append(el('p','',t.confirm));card.append(row);
+      }
+    }
+    card.append(el('p','hint',t.snapshot));this.shadowRoot.replaceChildren(style,card);
+    if(focus){const target=this.shadowRoot.getElementById(focus);if(target&&!target.disabled)target.focus({preventScroll:true});else if(this._busy)this._pendingFocus=focus;}
+  }
+}
+
 // This panel is registered without a sidebar item. It is reached from the device.
 class OuderAppPanel extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: 'open' }); this._source = 'timeline'; this._accounts = []; this._epoch = 0; this._account = ''; }
@@ -657,7 +757,7 @@ class OuderAppPanel extends HTMLElement {
   set route(value) {
     this._route = value;
     const query = new URLSearchParams(String(value?.path || '').split('?')[1] || window.location.search);
-    if (['timeline', 'news', 'newsletters', 'messages'].includes(query.get('source'))) this._source = query.get('source');
+    if (['timeline', 'news', 'newsletters', 'messages', 'planning'].includes(query.get('source'))) this._source = query.get('source');
     this._sync();
   }
   set panel(value) { this._panel = value; this._sync(); }
@@ -671,12 +771,14 @@ class OuderAppPanel extends HTMLElement {
   }
   _sync() {
     if (!this.isConnected) return;
+    if(this._source==='planning' && this._hass?.user?.is_admin!==true)this._source='timeline';
     const routeAccount = this._routeAccount();
-    const context = `${routeAccount}|${this._source}|${this._hass?.user?.id || ''}|${locale(this._hass)}`;
+    const context = `${routeAccount}|${this._source}|${this._hass?.user?.id || ''}|${this._hass?.user?.is_admin===true}|${locale(this._hass)}`;
     if (!this._card) {
       const style = el('style'); style.textContent = SURFACE_CSS;
       const shell = el('div', 'panel-shell'); this._toolbar = el('div', 'panel-toolbar');
-      const main = el('main', 'panel-content'); this._controls = el('div');
+      const main = el('main', 'panel-content'); this._main=main; this._controls = el('div');
+      this._planning=el('ouderapp-planning');this._planning.id='ouderapp-planning';this._planning.setAttribute('role','tabpanel');
       this._card = el('ouderapp-card'); this._card.id = 'ouderapp-content'; this._card.setAttribute('role', 'tabpanel');
       main.append(this._controls, this._card); shell.append(this._toolbar, main); this.shadowRoot.replaceChildren(style, shell);
     }
@@ -688,6 +790,8 @@ class OuderAppPanel extends HTMLElement {
     this._syncCard();
   }
   _syncCard() {
+    if(this._source==='planning'){this._card.remove();this._planning.setContext(this._hass,this._account);if(!this._planning.isConnected)this._main.append(this._planning);return;}
+    this._planning.remove();if(!this._card.isConnected)this._main.append(this._card);
     this._card.setConfig({ type: 'custom:ouderapp-card', config_entry_id: this._account, source: this._source, limit: 20, show_images: true });
     this._card.hass = this._hass;
   }
@@ -707,12 +811,13 @@ class OuderAppPanel extends HTMLElement {
     back.className = 'icon-button'; back.setAttribute('aria-label', device ? t.backDevice : t.backIntegration); back.title = back.getAttribute('aria-label'); back.replaceChildren(icon('arrow-left'));
     this._toolbar.replaceChildren(back, el('h1', '', 'OuderApp'));
     const tabs = el('div', 'tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', t.source);
-    for (const [source, label] of [['timeline', t.timeline], ['news', t.news], ['newsletters', t.newsletters], ['messages', t.conversations]]) {
+    const choices=[['timeline', t.timeline], ['news', t.news], ['newsletters', t.newsletters], ['messages', t.conversations], ...(this._hass?.user?.is_admin===true?[['planning',planningWords(this._hass).title]]:[])];
+    for (const [source, label] of choices) {
       const tab = button(label, () => { this._source = source; this._sync(); this.shadowRoot.querySelector(`#tab-${source}`)?.focus(); }, 'tab');
-      tab.textContent = label; tab.id = `tab-${source}`; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(source === this._source)); tab.setAttribute('aria-controls', 'ouderapp-content'); tab.tabIndex = source === this._source ? 0 : -1;
-      tab.addEventListener('keydown', (event) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const sources = ['timeline', 'news', 'newsletters', 'messages']; const index = sources.indexOf(source); this._source = event.key === 'Home' ? sources[0] : event.key === 'End' ? sources.at(-1) : sources[(index + (event.key === 'ArrowLeft' ? 3 : 1)) % 4]; this._sync(); this.shadowRoot.querySelector(`#tab-${this._source}`)?.focus(); } }); tabs.append(tab);
+      tab.textContent = label; tab.id = `tab-${source}`; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(source === this._source)); tab.setAttribute('aria-controls', source==='planning'?'ouderapp-planning':'ouderapp-content'); tab.tabIndex = source === this._source ? 0 : -1;
+      tab.addEventListener('keydown', (event) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const sources = choices.map(choice=>choice[0]); const index = sources.indexOf(source); this._source = event.key === 'Home' ? sources[0] : event.key === 'End' ? sources.at(-1) : sources[(index + (event.key === 'ArrowLeft' ? sources.length-1 : 1)) % sources.length]; this._sync(); this.shadowRoot.querySelector(`#tab-${this._source}`)?.focus(); } }); tabs.append(tab);
     }
-    this._card.setAttribute('aria-labelledby', `tab-${this._source}`);
+    this._card.setAttribute('aria-labelledby', `tab-${this._source}`);this._planning.setAttribute('aria-labelledby','tab-planning');
     this._controls.replaceChildren(tabs);
     if (!this._routeAccount()) {
       const field = el('div', 'panel-account'); const label = el('label', '', t.account); label.htmlFor = 'panel-account';
@@ -728,6 +833,7 @@ class OuderAppPanel extends HTMLElement {
 if (!customElements.get('ouderapp-card')) customElements.define('ouderapp-card', OuderAppCard);
 if (!customElements.get('ouderapp-card-editor')) customElements.define('ouderapp-card-editor', OuderAppCardEditor);
 if (!customElements.get('more-info-ouderapp')) customElements.define('more-info-ouderapp', MoreInfoOuderApp);
+if (!customElements.get('ouderapp-planning')) customElements.define('ouderapp-planning', OuderAppPlanning);
 if (!customElements.get('ouderapp-panel')) customElements.define('ouderapp-panel', OuderAppPanel);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === 'ouderapp-card')) window.customCards.push({ type: 'ouderapp-card', name: 'OuderApp', description: 'Childcare updates, conversations and photos from your OuderApp account.', preview: false });
