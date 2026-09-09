@@ -315,6 +315,11 @@ async def test_observed_content_routes_are_bounded_gets(
 ):
     def handle(request):
         assert request.method == "GET"
+        if (
+            method == "async_get_conversation"
+            and request.url.path == "/restservices-parent/logbook/overview"
+        ):
+            return httpx.Response(200, json=[{"logMessageMessageId": 12}])
         assert request.url.path == path
         assert request.headers["Authorization"] == "Bearer access-test"
         if method in ("async_get_messages", "async_get_newsletters"):
@@ -508,3 +513,20 @@ async def test_article_detail_rejects_unknown_shapes(session, kind, payload):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         with pytest.raises(OuderAppError):
             await OuderAppApi(client, "example", session).async_get_article(kind, "42")
+
+
+@pytest.mark.parametrize(
+    "rows", [[], [{"logMessageMessageId": 99}], [{"logMessageMessageId": True}]]
+)
+async def test_unknown_conversation_never_reaches_detail_endpoint(session, rows):
+    calls = []
+
+    def handle(request):
+        calls.append(request.url.path)
+        assert request.url.path == "/restservices-parent/logbook/overview"
+        return httpx.Response(200, json=rows)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(OuderAppError):
+            await OuderAppApi(client, "example", session).async_get_conversation("12")
+        assert len(calls) == 1

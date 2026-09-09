@@ -448,6 +448,13 @@ class OuderAppApi:
             or int(conversation) <= 0
         ):
             raise ValueError("Invalid conversation")
+        rows = await self.async_get_messages(20)
+        if not any(
+            type(row.get("logMessageMessageId")) in (int, str)
+            and str(row["logMessageMessageId"]) == conversation
+            for row in rows
+        ):
+            raise OuderAppError("Conversation unavailable in this account")
         result = _object(await self._get(f"/logbook/details/{conversation}/summary/true"))
         # Return the latest messages when the server provides a chronological thread.
         rows = result.get("messages")

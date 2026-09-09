@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.2.1 — gespreksselectie op de server controleren
+
+De server controleert vóór het ophalen van een nieuw gespreksdetail of de gekozen verwijzing voorkomt in het begrensde gespreksoverzicht van hetzelfde account. Deze controle geldt ook voor directe WebSocket-, HTTP- en automatiseringsaanvragen; de kaart controleerde de selectie al. Onbekende of verdwenen verwijzingen bereiken de detailroute niet.
+
 ## 0.2.0 — nieuws en nieuwsbrieven openen
 
 Titels in de nieuws- en nieuwsbriefweergave halen bij uitklappen de tekst op. De server controleert eerst of de detailverwijzing in het begrensde overzicht van hetzelfde account en dezelfde bron staat. Details gebruiken de bestaande toegangsrechten, cachelimieten en sessieafhandeling. Bij accountwissel, verborgen kaart of ingetrokken toegang worden oude of late antwoorden niet getoond.
