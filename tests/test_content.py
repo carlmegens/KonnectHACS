@@ -54,6 +54,46 @@ async def test_projection_and_media_ids_separate_accounts_and_sources(hass):
 
 
 @pytest.mark.parametrize(
+    "rhythm,diary,expected",
+    [
+        ("<p>12:00 gegeten</p>", "<p>Buiten gespeeld</p>", "12:00 gegeten\n\nBuiten gespeeld"),
+        ("<p>13:00 geslapen</p>", None, "13:00 geslapen"),
+        (None, "<p>Buiten gespeeld</p>", "Buiten gespeeld"),
+        ({"unexpected": "PRIVATE"}, "Tekst", "Tekst"),
+        ("<script>PRIVATE", "<p>Zichtbaar</p>", "Zichtbaar"),
+        ("&lt;voorbeeld&gt;", "A &amp; B", "<voorbeeld>\n\nA & B"),
+        (f'<p>Eten</p><img src="{URL}">{URL}', "<style>PRIVATE</style>Spelen", "Eten\n\nSpelen"),
+    ],
+)
+async def test_journal_preserves_independent_day_rhythm_and_diary(hass, rhythm, diary, expected):
+    api = AsyncMock()
+    api.async_get_timeline.return_value = [
+        {"type": "journal", "journal": {"dayRythmContent": rhythm, "journalContent": diary}}
+    ]
+    feed = OuderAppContent(hass, api)
+    item = (await feed.async_get_content("timeline"))["items"][0]
+    assert item["contents"] == expected
+    assert not item["truncated"]
+    assert not item["images"]
+    await feed.async_close()
+
+
+async def test_combined_journal_text_keeps_the_total_output_bound(hass):
+    api = AsyncMock()
+    api.async_get_timeline.return_value = [
+        {
+            "type": "journal",
+            "journal": {"dayRythmContent": "A" * 15000, "journalContent": "B" * 15000},
+        }
+    ]
+    feed = OuderAppContent(hass, api)
+    item = (await feed.async_get_content("timeline"))["items"][0]
+    assert item["contents"] == "A" * 15000 + "\n\n" + "B" * 4998
+    assert item["truncated"]
+    await feed.async_close()
+
+
+@pytest.mark.parametrize(
     "kind,method,row,title,text,date",
     [
         (

@@ -319,12 +319,16 @@ class OuderAppContent:
         items = []
         for index, row in enumerate(rows[:CONTENT_LIMIT]):
             title, text, sender = "", "", ""
+            journal_parts = None
             date, unread, detail_id = row.get("date"), None, None
             photos = []
             if kind == "timeline":
                 if row.get("type") == "journal" and isinstance(row.get("journal"), dict):
                     journal = row["journal"]
                     title, text = "Dagboek", journal.get("journalContent")
+                    # The official journal card renders day rhythm before the diary.
+                    # Parse independently: malformed HTML in one must not hide the other.
+                    journal_parts = (journal.get("dayRythmContent"), text)
                     sender, photos = journal.get("writtenByName"), journal.get("photos")
                 elif row.get("type") == "photo":
                     title, photos = "Foto's", row.get("photos")
@@ -368,9 +372,17 @@ class OuderAppContent:
                             images.append({"id": media_id, "name": "Foto"})
                         break
             contents = _safe_text(text, 200000 if detail else 20000)
+            if journal_parts is not None:
+                contents = "\n\n".join(
+                    part for value in journal_parts if (part := _safe_text(value))
+                )
             truncated = detail and (
                 len(contents) > 20000 or (isinstance(text, str) and len(text) > 200000)
             )
+            if journal_parts is not None:
+                truncated = len(contents) > 20000 or any(
+                    isinstance(value, str) and len(value) > 20000 for value in journal_parts
+                )
             items.append(
                 {
                     "id": str(index),

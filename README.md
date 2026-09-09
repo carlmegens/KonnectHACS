@@ -2,7 +2,7 @@
 
 # OuderApp (Konnect) voor Home Assistant
 
-**0.5.1 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
+**0.5.2 — testversie. Aanmelden bij De Eerste Stap is door de gebruiker bevestigd; nieuwsdetails met foto’s en de planningactie moeten nog in de praktijk worden gecontroleerd.**
 
 Voor Konnect/Ovivio-ouderportalen, met De Eerste Stap als eerste beoogde praktijkproef. De integratie volgt de openbare ouderwebapp. Zij is onofficieel en gebruikt geen browserprofiel of opgeslagen wachtwoord.
 
@@ -35,7 +35,7 @@ Download de nieuwste versie van deze repository in HACS, herstart Home Assistant
 - Pop-ups vanaf de tellers: kinderen opent de tijdlijn, berichten opent gesprekken, nieuws opent nieuws.
 - Intern paneel met tijdlijn, nieuws, nieuwsbrieven en gesprekken; teruglink naar het HA-apparaat.
 - Optionele kaart met visuele instellingen, accountkeuze, gesprekskeuze, titel, aantallen en foto-optie. Nederlands en Engels, licht en donker, desktop en mobiel.
-- Tijdlijn met dagboektekst en foto's; nieuws en nieuwsbrieven met tekst op aanvraag; overzicht van gesprekken en de laatste berichten uit één gekozen gesprek.
+- Tijdlijn met dagritme, dagboektekst en foto's; nieuws en nieuwsbrieven met tekst op aanvraag; overzicht van gesprekken en de laatste berichten uit één gekozen gesprek.
 
 Klik op de titel van een nieuwsitem of nieuwsbrief om de tekst te laden. Alleen het gekozen item wordt opgehaald, nadat de integratie heeft gecontroleerd dat het in het overzicht van dit account en deze bron staat. De tekstweergave bevat geen externe embeds, video's of trackingafbeeldingen. Bij een ontbrekende ondersteunde detailverwijzing blijft de voorvertoning zichtbaar. Lange tekst wordt begrensd tot 20.000 tekens en als ingekort aangeduid.
 
@@ -46,12 +46,12 @@ Er worden geen berichten verstuurd, opvangaanvragen gedaan of expliciete markeer
 Vereist: Home Assistant Core **2026.8.3 of hoger**, met Python 3.14.2 of hoger binnen 3.14. Latere HA-versies zijn nog niet getest.
 
 1. Maak een HA-back-up en gebruik voor de eerste proef bij voorkeur een testinstallatie.
-2. Pak `ouderapp-0.5.1-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
+2. Pak `ouderapp-0.5.2-candidate-install.zip` uit in de HA-configuratiemap. Controleer dat `custom_components/ouderapp/manifest.json` bestaat.
 3. Herstart Home Assistant. Voeg bij **Instellingen → Apparaten en diensten → Integratie toevoegen** de integratie **OuderApp (Konnect)** toe.
 4. Vul voor De Eerste Stap het portaal `deeerstestap` in en meld je aan met je ouderaccount. Vul het wachtwoord alleen in deze HA-flow in.
 5. Open het nieuwe OuderApp-apparaat en controleer de tellers tegenover de officiële app. Klik op een teller om de inhoud te openen.
 
-De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.1`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
+De frontendmodule wordt automatisch geregistreerd, ook voor de apparaatpop-ups. Bij een dashboard in YAML-modus voeg je zelf een module-resource toe met URL `/ouderapp/automation-card.js?v=0.5.2`. Een volledig hoofdloze HA-installatie kan de sensoren en beveiligde API gebruiken.
 
 Terugrollen: verwijder de OuderApp-koppeling bij Apparaten en diensten, verwijder vervolgens uitsluitend `custom_components/ouderapp` en herstart HA. Verwijder een eventueel achtergebleven dashboardresource voor `/ouderapp/automation-card.js`. Andere integraties hoeven niet te worden gewijzigd.
 

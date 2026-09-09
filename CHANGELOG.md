@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.5.2 — dagritme in het dagboek
+
+Dagboekkaarten tonen nu ook de door de opvang aangeleverde dagritmetekst, vóór de dagboektekst, zoals in de officiële app. Een kaart met alleen dagritme blijft daardoor niet langer zonder tekst. Beide velden worden afzonderlijk naar gewone tekst omgezet; afwijkende HTML in het ene veld verbergt het andere niet. De gezamenlijke tekst blijft begrensd op 20.000 tekens.
+
+Geen extra aanvragen of opslag in sensoren. Nieuwsbriefmedia blijven ongewijzigd: de onderzochte officiële renderer biedt een HTML-document, zonder aangetoonde afzonderlijke mediavelden. Dagritme is met synthetische gegevens getest; echte opvanginhoud blijft nog te controleren.
+
 ## 0.5.1 — geplande opvang herkennen
 
 De officiële planningstatus `attend` wordt nu behouden en als **Gepland** getoond in het paneel en de kalenderexport. Deze code en de Nederlandse vertaling zijn bevestigd in de openbare officiële app. Eerdere versies toonden hiervoor Status onbekend.
