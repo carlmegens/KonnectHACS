@@ -30,7 +30,15 @@ async def test_real_flow_transport_refresh_and_unload(hass, hass_ws_client):
             return httpx.Response(200, json={"fullname": "Synthetic Parent"})
         if path == "/restservices-parent/htmlnews/view":
             return httpx.Response(
-                200, json=[{"title": "News", "htmlContentId": 42, "contentSnippet": "Preview"}]
+                200,
+                json={
+                    "result": True,
+                    "payload": {
+                        "newsItems": [
+                            {"title": "News", "htmlContentId": 42, "contentSnippet": "Preview"}
+                        ]
+                    },
+                },
             )
         if path == "/restservices-parent/htmlcontent/container/42":
             return httpx.Response(

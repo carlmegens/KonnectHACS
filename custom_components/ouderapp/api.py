@@ -393,7 +393,7 @@ class OuderAppApi:
 
     async def async_get_news(self, limit: int = 20) -> list[dict[str, Any]]:
         self._limit(limit)
-        return _items(await self._get("/htmlnews/view"))[:limit]
+        return _items(await self._get("/htmlnews/view"), "newsItems")[:limit]
 
     async def async_get_article(self, kind: str, article: str) -> list[dict[str, Any]]:
         """Read one article only after proving membership of this account/source."""

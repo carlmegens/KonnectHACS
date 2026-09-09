@@ -530,3 +530,58 @@ async def test_unknown_conversation_never_reaches_detail_endpoint(session, rows)
         with pytest.raises(OuderAppError):
             await OuderAppApi(client, "example", session).async_get_conversation("12")
         assert len(calls) == 1
+
+
+async def test_official_news_envelope_and_detail_selection(session):
+    calls = []
+
+    def handle(request):
+        calls.append(request.url.path)
+        assert request.method == "GET"
+        if request.url.path == "/restservices-parent/htmlnews/view":
+            return httpx.Response(
+                200,
+                json={
+                    "result": True,
+                    "payload": {
+                        "newsItems": [
+                            {"title": "First", "htmlContentId": 42},
+                            {"title": "Second", "htmlContentId": 43},
+                        ]
+                    },
+                    "messages": [],
+                },
+            )
+        assert request.url.path == "/restservices-parent/htmlcontent/container/42"
+        return httpx.Response(
+            200, json={"payload": {"items": [{"itemParts": [{"content": "Text"}]}]}}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        api = OuderAppApi(client, "example", session)
+        assert await api.async_get_news(1) == [{"title": "First", "htmlContentId": 42}]
+        assert len(calls) == 1
+        assert (await api.async_get_article("news", "42"))[0]["detail_html"] == "Text"
+        assert calls[-1].endswith("/container/42")
+
+
+@pytest.mark.parametrize(
+    "payload", [{"newsItems": None}, {"newsItems": {}}, {"newsItems": [None]}, {"unknown": []}]
+)
+async def test_malformed_news_envelope_is_not_an_empty_feed(session, payload):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"result": True, "payload": payload})
+        )
+    ) as client:
+        with pytest.raises(OuderAppError):
+            await OuderAppApi(client, "example", session).async_get_news()
+
+
+async def test_empty_official_news_envelope_is_valid(session):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"result": True, "payload": {"newsItems": []}})
+        )
+    ) as client:
+        assert await OuderAppApi(client, "example", session).async_get_news() == []

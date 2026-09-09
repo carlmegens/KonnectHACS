@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.2.2 — nieuwsoverzicht laden
+
+Het nieuwsoverzicht verwerkt nu de officiële `payload.newsItems`-antwoordvorm. Eerdere versies verwachtten hier een losse lijst en konden daardoor “Berichten konden niet worden geladen” tonen terwijl de nieuwsteller wel werkte. De correctie geldt ook voor de lijstcontrole bij het openen van een nieuwsdetail. Een geldige lege lijst blijft leeg; afwijkende antwoorden blijven herkenbaar als fout.
+
 ## 0.2.1 — gespreksselectie op de server controleren
 
 De server controleert vóór het ophalen van een nieuw gespreksdetail of de gekozen verwijzing voorkomt in het begrensde gespreksoverzicht van hetzelfde account. Deze controle geldt ook voor directe WebSocket-, HTTP- en automatiseringsaanvragen; de kaart controleerde de selectie al. Onbekende of verdwenen verwijzingen bereiken de detailroute niet.
